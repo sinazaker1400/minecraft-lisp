@@ -12,21 +12,33 @@ A 3D block-based game inspired by Minecraft, written in Common Lisp using LispBu
 
 ## Installation
 
-1.  Ensure you have [SBCL](https://www.sbcl.org/) installed.
+1.  Install dependencies on your host using Guix (as used in development):
+    ```bash
+    guix install sbcl sdl12-compat glu
+    ```
+    Or install these three packages depending on your operating system.
 2.  Ensure you have [Quicklisp](https://www.quicklisp.org/beta/) installed.
-3.  Clone the repository:
+3.  Clone the repository to "~/quicklisp/local-projects/":
     ```bash
-    git clone https://github.com/sinazaker1400/minecraft-lisp.git
-    cd minecraft-lisp
+    git clone https://github.com/sinazaker1400/minecraft-lisp.git ~/quicklisp/local-projects/minecraft
     ```
-4.  Install dependencies using Guix (as used in development):
+4.  Load and run the game.
+    From repl:
     ```bash
-    guix install sbcl-lispbuilder-sdl cl-opengl cl-glu
+    (ql:quickload :minecraft)
+    (minecraft-3d:start-game)
     ```
-    (Or ensure `lispbuilder-sdl`, `cl-opengl`, `cl-glu` are available via Quicklisp/ASDF)
-5.  Run the game:
+
+    From bash:
     ```bash
-    sbcl --load ~/quicklisp/setup.lisp --eval '(require :asdf)' --eval '(asdf:load-system :lispbuilder-sdl)' --eval '(asdf:load-system :cl-opengl)' --eval '(asdf:load-system :cl-glu)' --eval '(load "minecraft.lisp")' --eval '(minecraft-3d:start-game)'
+    sbcl --eval '(ql:quickload :minecraft)' --eval '(minecraft-3d:start-game)'
+    ```
+
+    From the isolated shell of guix:
+    ```bash
+    guix shell --pure sbcl sdl12-compat glu
+    export LD_LIBRARY_PATH=/run/current-system/profile/lib:$HOME/.guix-profile/lib:$LD_LIBRARY_PATH
+    sbcl --eval '(ql:quickload :minecraft)' --eval '(minecraft-3d:start-game)'
     ```
 
 ## Usage
