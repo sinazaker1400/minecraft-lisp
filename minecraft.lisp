@@ -220,7 +220,10 @@
   (gl:flush)))
 
 (defun handle-input (player)
-  (let ((speed 0.1))
+  "Handle player input for 3D movement and rotation"
+  (let ((speed 1.0))
+    ;; Movement (WASD keys)
+    ;; Convert results of trig functions and PI to single-float
     (when (sdl:key-down-p :sdl-key-w)
       (incf (game-player-x player)
             (float (* speed (cos (game-player-rot-y player))) 0.0))
