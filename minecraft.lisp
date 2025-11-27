@@ -199,7 +199,7 @@
 
 (defun handle-input (player)
   "Handle player input for 3D movement and rotation"
-  (let ((speed 0.1))
+  (let ((speed 1.0))
     ;; Movement (WASD keys)
     ;; Convert results of trig functions and PI to single-float
     (when (sdl:key-down-p :sdl-key-w)
