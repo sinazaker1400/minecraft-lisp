@@ -9,3 +9,6 @@ cd ~/Sina-works/lisp/projects/minecraft-lisp
 the main file:
 
 sbcl --load ~/quicklisp/setup.lisp --eval '(require :asdf)' --eval '(asdf:load-system :lispbuilder-sdl)' --eval '(asdf:load-system :cl-opengl)' --eval '(asdf:load-system :cl-glu)' --eval '(load "minecraft.lisp")' --eval '(minecraft-3d:start-game)' 
+
+to commit:
+git -c http.proxy= -c https.proxy= push -u origin main
