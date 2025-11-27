@@ -23,6 +23,7 @@ A 3D block-based game inspired by Minecraft, written in Common Lisp using LispBu
     git clone https://github.com/sinazaker1400/minecraft-lisp.git ~/quicklisp/local-projects/minecraft
     ```
 4.  Load and run the game.
+
     From repl:
     ```bash
     (ql:quickload :minecraft)
