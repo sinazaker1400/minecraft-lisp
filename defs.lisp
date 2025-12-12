@@ -12,6 +12,8 @@
 ;; Hash table to store chunk sections, keyed by (list chunk_x chunk_y chunk_z)
 (defparameter *world-chunks* (make-hash-table :test 'equal))
 
+(defconstant +max-ray-distance+ 10.0)
+
 ;; --- Data Structures ---
 (defstruct world-block
   "A block in the world"
@@ -39,3 +41,16 @@
   (z 8.0 :type single-float)
   (rot-x 0.0 :type single-float)  ; Looking direction (pitch)
   (rot-y 0.0 :type single-float)) ; Looking direction (yaw)
+
+;; Add this if it's not already in your defs.lisp file
+(defstruct raycast-result
+  (hit-p nil :type boolean)
+  (block-x 0 :type fixnum)
+  (block-y 0 :type fixnum)
+  (block-z 0 :type fixnum)
+  (face :unknown :type (member :top :bottom :front :back :left :right :unknown))
+  (hit-x 0.0 :type single-float)
+  (hit-y 0.0 :type single-float)
+  (hit-z 0.0 :type single-float))
+
+;; Add this if it's not already in your defs.lisp file

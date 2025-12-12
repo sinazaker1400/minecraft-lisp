@@ -28,10 +28,10 @@
 ;; --- NEW FUNCTIONS FOR FACE CULLING (and dependencies) ---
 
 ;; Function to check if a block exists and is non-air at world coordinates
-(defun is-block-present (world-x world-y world-z)
-  "Checks if a block exists and is non-air at the given world coordinates."
+;;(defun is-block-present (world-x world-y world-z)
+;;  "Checks if a block exists and is non-air at the given world coordinates."
   ;; Use get-block defined earlier
-  (not (null (get-block world-x world-y world-z))))
+;;  (not (null (get-block world-x world-y world-z))))
 
 ;; Function to calculate geometry for a single face
 (defun calculate-face-geometry (world-x world-y world-z face-direction block-type)
@@ -140,37 +140,69 @@
 
 ;; Function to calculate visible faces for a chunk (defined AFTER generate-chunk)
 ;; Now that generate-chunk is defined, we can define this.
+;; Simpler calculate-chunk-geometry that only checks within the same chunk object
+;; Adjacent chunk updates will need to trigger a recalculation of the bordering chunks.
+
 (defun calculate-chunk-geometry (chunk)
-  "Calculates the visible faces for a chunk and stores them in the chunk structure."
-  (let ((geometry-list '()))
+  "Calculates the visible faces for a chunk and stores them in the chunk structure.
+   Only checks neighbors within the same chunk object. Adjacent chunk changes
+   require re-calculating border chunks."
+  (let ((geometry-list '())
+        (blocks (chunk-blocks chunk))) ; Get the block array once
     (loop for local-x from 0 below *chunk-size-x* do
       (loop for local-y from 0 below *chunk-size-y* do
         (loop for local-z from 0 below *chunk-size-z* do
-          (let ((block-type (aref (chunk-blocks chunk) local-x local-y local-z)))
+          (let ((block-type (aref blocks local-x local-y local-z)))
             (when block-type ; Only process non-air blocks
-              ;; Convert local coordinates to world coordinates for neighbor checks
-              (let ((world-x (+ (* (chunk-x chunk) *chunk-size-x*) local-x))
-                    (world-y (+ (* (chunk-y chunk) *chunk-size-y*) local-y))
-                    (world-z (+ (* (chunk-z chunk) *chunk-size-z*) local-z)))
-                ;; Check each neighbor direction
-                ;; Up (Y+)
-                (unless (is-block-present world-x (1+ world-y) world-z)
-                  (push (calculate-face-geometry world-x world-y world-z :top block-type) geometry-list))
-                ;; Down (Y-)
-                (unless (is-block-present world-x (1- world-y) world-z)
-                  (push (calculate-face-geometry world-x world-y world-z :bottom block-type) geometry-list))
-                ;; East (X+)
-                (unless (is-block-present (1+ world-x) world-y world-z)
-                  (push (calculate-face-geometry world-x world-y world-z :right block-type) geometry-list))
-                ;; West (X-)
-                (unless (is-block-present (1- world-x) world-y world-z)
-                  (push (calculate-face-geometry world-x world-y world-z :left block-type) geometry-list))
-                ;; South (Z+)
-                (unless (is-block-present world-x world-y (1+ world-z))
-                  (push (calculate-face-geometry world-x world-y world-z :front block-type) geometry-list))
-                ;; North (Z-)
-                (unless (is-block-present world-x world-y (1- world-z))
-                  (push (calculate-face-geometry world-x world-y world-z :back block-type) geometry-list))))))))
+              ;; Check each neighbor direction *within the same chunk*
+              ;; Up (Y+) - Check if Y+1 is within chunk bounds and block is air
+              (let ((neighbor-y (1+ local-y)))
+                (unless (or (>= neighbor-y *chunk-size-y*) (aref blocks local-x neighbor-y local-z))
+                  (push (calculate-face-geometry
+                         (+ (* (chunk-x chunk) *chunk-size-x*) local-x)
+                         (+ (* (chunk-y chunk) *chunk-size-y*) local-y)
+                         (+ (* (chunk-z chunk) *chunk-size-z*) local-z)
+                         :top block-type) geometry-list)))
+              ;; Down (Y-) - Check if Y-1 is within chunk bounds and block is air
+              (let ((neighbor-y (1- local-y)))
+                (unless (or (< neighbor-y 0) (aref blocks local-x neighbor-y local-z))
+                  (push (calculate-face-geometry
+                         (+ (* (chunk-x chunk) *chunk-size-x*) local-x)
+                         (+ (* (chunk-y chunk) *chunk-size-y*) local-y)
+                         (+ (* (chunk-z chunk) *chunk-size-z*) local-z)
+                         :bottom block-type) geometry-list)))
+              ;; Right (X+) - Check if X+1 is within chunk bounds and block is air
+              (let ((neighbor-x (1+ local-x)))
+                (unless (or (>= neighbor-x *chunk-size-x*) (aref blocks neighbor-x local-y local-z))
+                  (push (calculate-face-geometry
+                         (+ (* (chunk-x chunk) *chunk-size-x*) local-x)
+                         (+ (* (chunk-y chunk) *chunk-size-y*) local-y)
+                         (+ (* (chunk-z chunk) *chunk-size-z*) local-z)
+                         :right block-type) geometry-list)))
+              ;; Left (X-) - Check if X-1 is within chunk bounds and block is air
+              (let ((neighbor-x (1- local-x)))
+                (unless (or (< neighbor-x 0) (aref blocks neighbor-x local-y local-z))
+                  (push (calculate-face-geometry
+                         (+ (* (chunk-x chunk) *chunk-size-x*) local-x)
+                         (+ (* (chunk-y chunk) *chunk-size-y*) local-y)
+                         (+ (* (chunk-z chunk) *chunk-size-z*) local-z)
+                         :left block-type) geometry-list)))
+              ;; Front (Z+) - Check if Z+1 is within chunk bounds and block is air
+              (let ((neighbor-z (1+ local-z)))
+                (unless (or (>= neighbor-z *chunk-size-z*) (aref blocks local-x local-y neighbor-z))
+                  (push (calculate-face-geometry
+                         (+ (* (chunk-x chunk) *chunk-size-x*) local-x)
+                         (+ (* (chunk-y chunk) *chunk-size-y*) local-y)
+                         (+ (* (chunk-z chunk) *chunk-size-z*) local-z)
+                         :front block-type) geometry-list)))
+              ;; Back (Z-) - Check if Z-1 is within chunk bounds and block is air
+              (let ((neighbor-z (1- local-z)))
+                (unless (or (< neighbor-z 0) (aref blocks local-x local-y neighbor-z))
+                  (push (calculate-face-geometry
+                         (+ (* (chunk-x chunk) *chunk-size-x*) local-x)
+                         (+ (* (chunk-y chunk) *chunk-size-y*) local-y)
+                         (+ (* (chunk-z chunk) *chunk-size-z*) local-z)
+                         :back block-type) geometry-list)))))))
     ;; Store the calculated geometry in the chunk structure
     (setf (chunk-visible-faces-geometry chunk) geometry-list
-          (chunk-needs-geometry-update chunk) nil))) ; Mark as updated
+          (chunk-needs-geometry-update chunk) nil))))
