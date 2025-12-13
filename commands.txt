@@ -3,7 +3,7 @@ minecraft simulation, qwen ai helped
 the commands for terminal:
 
 to navigate to the file destination :
-cd ~/Sina-works/lisp/projects/minecraft-lisp
+cd ~/quicklisp/local-projects/minecraft-lisp
 
 
 to run the project:
