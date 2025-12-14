@@ -1,6 +1,7 @@
 (in-package #:minecraft-3d)
 
 (defun handle-input (player)
+  "Handles keyboard input for player movement and rotation"
   (let ((speed 1.0))
     ;; Movement (WASD keys)
     (when (sdl:key-down-p :sdl-key-w)
@@ -23,19 +24,19 @@
             (float (* speed (cos (+ (float (game-player-rot-y player) 0.0) (/ (float pi 0.0) 2.0)))) 0.0))
       (incf (game-player-z player)
             (float (* speed (sin (+ (float (game-player-rot-y player) 0.0) (/ (float pi 0.0) 2.0)))) 0.0)))
+
     ;; Vertical movement (Space and LShift)
     (when (sdl:key-down-p :sdl-key-space)
       (incf (game-player-y player) (float speed 0.0)))
     (when (sdl:key-down-p :sdl-key-lshift)
       (decf (game-player-y player) (float speed 0.0)))
 
-    ;; Rotation (arrow keys for simplicity, mouse look is more complex)
+    ;; Rotation (arrow keys)
     (when (sdl:key-down-p :sdl-key-left)
-      (decf (game-player-rot-y player) (float 0.05 0.0))) ; Turn left (yaw)
+      (decf (game-player-rot-y player) (float 0.05 0.0)))
     (when (sdl:key-down-p :sdl-key-right)
-      (incf (game-player-rot-y player) (float 0.05 0.0))) ; Turn right (yaw)
+      (incf (game-player-rot-y player) (float 0.05 0.0)))
     (when (sdl:key-down-p :sdl-key-up)
-      (decf (game-player-rot-x player) (float 0.05 0.0))) ; Look up (pitch)
+      (decf (game-player-rot-x player) (float 0.05 0.0)))
     (when (sdl:key-down-p :sdl-key-down)
-      (incf (game-player-rot-x player) (float 0.05 0.0))) ; Look down (pitch)
-    ))
+      (incf (game-player-rot-x player) (float 0.05 0.0)))))

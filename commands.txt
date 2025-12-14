@@ -1,9 +1,13 @@
-minecraft simulation, qwen ai helped
+unlimitted minecraft simulation at y direction, developed by ai tools
 
 the commands for terminal:
 
 to navigate to the file destination :
 cd ~/quicklisp/local-projects/minecraft-lisp
+
+to remove the compiled files :
+
+rm -rf ~/.cache/common-lisp/sbcl-*/linux-x64-s/home/sina/quicklisp/local-projects/minecraft-lis
 
 
 to run the project:
@@ -12,3 +16,16 @@ sbcl --load ~/quicklisp/setup.lisp --eval '(require :asdf)' --eval '(asdf:load-s
 
 to commit:
 git -c http.proxy= -c https.proxy= push -u origin main
+
+notes :
+
+* ai tools i tried :
+
+deepseek    note : free but weak in variable scope & parentises counts
+qwen    note : free but weak in variable scope & parentises counts
+claude    note : good but needs vpn  
+trae    note : 
+gemini    note : needs vpn
+github copilot    note : free but limitted & 
+cursor
+v0.app < now    note : free & good

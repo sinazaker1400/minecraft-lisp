@@ -12,6 +12,9 @@
 ;; Hash table to store chunk sections, keyed by (list chunk_x chunk_y chunk_z)
 (defparameter *world-chunks* (make-hash-table :test 'equal))
 
+;; Add global random state for seeding
+(defparameter *game-random-state* (make-random-state))
+
 (defconstant +max-ray-distance+ 10.0)
 
 ;; --- Data Structures ---
@@ -53,4 +56,10 @@
   (hit-y 0.0 :type single-float)
   (hit-z 0.0 :type single-float))
 
-;; Add this if it's not already in your defs.lisp file
+;; Add function to initialize random state with a seed
+(defun initialize-randomness (seed)
+  "Initialize the random state with a given seed for reproducible world generation"
+  (setf *game-random-state* (make-random-state))
+  ;; Set the random state seed using Common Lisp's built-in mechanism
+  (dotimes (i (mod seed 1000))
+    (random 1000000 *game-random-state*)))
