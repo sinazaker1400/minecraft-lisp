@@ -39,6 +39,7 @@
                8.0  65.0 8.0
                0.0  1.0 0.0))
 
+
 (defun render-world (player)
   (gl:clear-color 0.5 0.7 1.0 1.0)
   (gl:clear :color-buffer :depth-buffer)
@@ -83,5 +84,33 @@
                         (gl:normal nx ny nz)
                         (gl:color r g b)
                         (gl:vertex x y z))))))))))))
+
+  ;; Draw 2D crosshair at center of screen
+  (gl:matrix-mode :projection)
+  (gl:push-matrix)
+  (gl:load-identity)
+  (gl:ortho 0.0 (float *window-width* 0.0) (float *window-height* 0.0) 0.0 -1.0 1.0)
+  (gl:matrix-mode :modelview)
+  (gl:push-matrix)
+  (gl:load-identity)
+
+  ;; Draw white crosshair at center
+  (let ((center-x (/ *window-width* 2.0))
+        (center-y (/ *window-height* 2.0))
+        (crosshair-size 10.0))
+    (gl:color 1.0 1.0 1.0)
+    (gl:with-primitives :lines
+      ;; Horizontal line
+      (gl:vertex (- center-x crosshair-size) center-y)
+      (gl:vertex (+ center-x crosshair-size) center-y)
+      ;; Vertical line
+      (gl:vertex center-x (- center-y crosshair-size))
+      (gl:vertex center-x (+ center-y crosshair-size))))
+
+  ;; Restore matrices
+  (gl:pop-matrix)
+  (gl:matrix-mode :projection)
+  (gl:pop-matrix)
+  (gl:matrix-mode :modelview)
 
   (gl:flush))

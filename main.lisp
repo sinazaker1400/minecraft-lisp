@@ -17,7 +17,10 @@
     (init-opengl *window-width* *window-height*)
     (setup-opengl *window-width* *window-height*)
 
-    (let ((player (make-game-player)))
+    (let ((player (make-game-player))
+          (prev-mouse-x nil)
+          (prev-mouse-y nil))
+      ;; Initialize mouse position tracking locally instead of globally
       ;; Initial render
       (render-world player)
 
@@ -37,11 +40,18 @@
                          (case key
                            (:sdl-key-escape (sdl:push-quit-event))))
 
+        ;; Mouse motion event for mouse look - extract x and y and calculate delta
+        (:mouse-motion-event (:x mouse-x :y mouse-y)
+         (when (and prev-mouse-x prev-mouse-y)
+           (let ((delta-x (- mouse-x prev-mouse-x))
+                 (delta-y (- mouse-y prev-mouse-y)))
+             (handle-mouse-look player delta-x delta-y)))
+         (setf prev-mouse-x mouse-x)
+         (setf prev-mouse-y mouse-y))
+
         ;; Mouse button down event for block interaction
         (:mouse-button-down-event (:button button :x mouse-x :y mouse-y)
-         ;; Added debug output to trace mouse clicks
          (format t "[v0] Mouse click detected: button=~A at (~A, ~A)~%" button mouse-x mouse-y)
-         ;; Added error handling and more explicit button matching
          (handler-case
              (let ((raycast-result (perform-raycast player)))
                (format t "[v0] Raycast result hit: ~A~%" (raycast-result-hit-p raycast-result))

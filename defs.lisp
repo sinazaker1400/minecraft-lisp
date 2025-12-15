@@ -17,6 +17,12 @@
 
 (defconstant +max-ray-distance+ 10.0)
 
+;; Mouse look support variables
+(defparameter *mouse-x* 0)
+(defparameter *mouse-y* 0)
+(defparameter *mouse-sensitivity* 0.015) ; Increased from 0.003 to 0.01 for 1:1 mouse tracking
+(defparameter *mouse-captured* nil) ; Track if mouse is captured for look control
+
 ;; --- Data Structures ---
 (defstruct world-block
   "A block in the world"
