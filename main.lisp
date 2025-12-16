@@ -13,6 +13,9 @@
                 :title-caption "Minecraft 3D Lisp"
                 :icon-caption "Minecraft 3D Lisp")
 
+    ; Hide the mouse cursor during gameplay
+    (sdl-cffi::sdl-show-cursor 0)
+
     ;; Initialize OpenGL settings
     (init-opengl *window-width* *window-height*)
     (setup-opengl *window-width* *window-height*)
@@ -27,7 +30,10 @@
       ;; Main game loop
       (sdl:with-events ()
         ;; Quit event
-        (:quit-event () t)
+        (:quit-event ()
+         ; Show cursor when quitting
+         (sdl-cffi::sdl-show-cursor 1)
+         t)
 
         ;; Video expose event
         (:video-expose-event ()
@@ -38,7 +44,10 @@
         ;; Key down event
         (:key-down-event (:key key)
                          (case key
-                           (:sdl-key-escape (sdl:push-quit-event))))
+                           (:sdl-key-escape 
+                            ; Show cursor and quit when ESC is pressed
+                            (sdl-cffi::sdl-show-cursor 1)
+                            (sdl:push-quit-event))))
 
         ;; Mouse motion event for mouse look - extract x and y and calculate delta
         (:mouse-motion-event (:x mouse-x :y mouse-y)
@@ -86,5 +95,12 @@
         (:idle ()
          (handle-input player)
          (update-chunk-geometries)
+         ;; Update targeted block every frame for highlighting
+         (let ((raycast-result (perform-raycast player)))
+           (if (raycast-result-hit-p raycast-result)
+               (setf *targeted-block* (list (raycast-result-block-x raycast-result)
+                                           (raycast-result-block-y raycast-result)
+                                           (raycast-result-block-z raycast-result)))
+               (setf *targeted-block* nil)))
          (render-world player)
          (sdl:update-display))))))

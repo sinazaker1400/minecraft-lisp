@@ -20,8 +20,11 @@
 ;; Mouse look support variables
 (defparameter *mouse-x* 0)
 (defparameter *mouse-y* 0)
-(defparameter *mouse-sensitivity* 0.015) ; Increased from 0.003 to 0.01 for 1:1 mouse tracking
+(defparameter *mouse-sensitivity* 0.01) ; Increased from 0.003 to 0.01 for 1:1 mouse tracking
 (defparameter *mouse-captured* nil) ; Track if mouse is captured for look control
+
+;; Global variable to track the currently targeted block
+(defparameter *targeted-block* nil) ; Will store (list x y z) or nil if no block targeted
 
 ;; --- Data Structures ---
 (defstruct world-block

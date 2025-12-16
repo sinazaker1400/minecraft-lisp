@@ -39,7 +39,6 @@
                8.0  65.0 8.0
                0.0  1.0 0.0))
 
-
 (defun render-world (player)
   (gl:clear-color 0.5 0.7 1.0 1.0)
   (gl:clear :color-buffer :depth-buffer)
@@ -85,29 +84,73 @@
                         (gl:color r g b)
                         (gl:vertex x y z))))))))))))
 
-  ;; Draw 2D crosshair at center of screen
+  ;; Draw highlighted border around targeted block (3D)
+  (when *targeted-block*
+    (destructuring-bind (bx by bz) *targeted-block*
+      (gl:disable :lighting)
+      (gl:color 1.0 1.0 0.0)  ; Yellow highlight
+      (gl:line-width 2.0)
+      ;; Adjust highlight box to match block rendering (centered at integer coords with 0.5 size)
+      (let ((half-size 0.5))
+        ;; Draw cube outline using line segments around the block center
+        (gl:with-primitives :line-loop
+          ;; Top face
+          (gl:vertex (float (- bx half-size)) (float (+ by half-size)) (float (- bz half-size)))
+          (gl:vertex (float (+ bx half-size)) (float (+ by half-size)) (float (- bz half-size)))
+          (gl:vertex (float (+ bx half-size)) (float (+ by half-size)) (float (+ bz half-size)))
+          (gl:vertex (float (- bx half-size)) (float (+ by half-size)) (float (+ bz half-size))))
+        (gl:with-primitives :line-loop
+          ;; Bottom face
+          (gl:vertex (float (- bx half-size)) (float (- by half-size)) (float (- bz half-size)))
+          (gl:vertex (float (+ bx half-size)) (float (- by half-size)) (float (- bz half-size)))
+          (gl:vertex (float (+ bx half-size)) (float (- by half-size)) (float (+ bz half-size)))
+          (gl:vertex (float (- bx half-size)) (float (- by half-size)) (float (+ bz half-size))))
+        ;; Vertical edges
+        (gl:with-primitives :lines
+          (gl:vertex (float (- bx half-size)) (float (- by half-size)) (float (- bz half-size)))
+          (gl:vertex (float (- bx half-size)) (float (+ by half-size)) (float (- bz half-size)))
+          (gl:vertex (float (+ bx half-size)) (float (- by half-size)) (float (- bz half-size)))
+          (gl:vertex (float (+ bx half-size)) (float (+ by half-size)) (float (- bz half-size)))
+          (gl:vertex (float (+ bx half-size)) (float (- by half-size)) (float (+ bz half-size)))
+          (gl:vertex (float (+ bx half-size)) (float (+ by half-size)) (float (+ bz half-size)))
+          (gl:vertex (float (- bx half-size)) (float (- by half-size)) (float (+ bz half-size)))
+          (gl:vertex (float (- bx half-size)) (float (+ by half-size)) (float (+ bz half-size)))))
+      (gl:line-width 1.0)
+      (gl:enable :lighting)))
+
+  ;; Simplified 2D crosshair rendering without push-attrib
+  ;; Save current matrix state manually
   (gl:matrix-mode :projection)
   (gl:push-matrix)
   (gl:load-identity)
   (gl:ortho 0.0 (float *window-width* 0.0) (float *window-height* 0.0) 0.0 -1.0 1.0)
+  
   (gl:matrix-mode :modelview)
   (gl:push-matrix)
   (gl:load-identity)
+
+  ;; Disable depth testing to render on top
+  (gl:disable :depth-test)
+  (gl:disable :lighting)
 
   ;; Draw white crosshair at center
   (let ((center-x (/ *window-width* 2.0))
         (center-y (/ *window-height* 2.0))
         (crosshair-size 10.0))
     (gl:color 1.0 1.0 1.0)
+    (gl:line-width 2.0)
     (gl:with-primitives :lines
       ;; Horizontal line
-      (gl:vertex (- center-x crosshair-size) center-y)
-      (gl:vertex (+ center-x crosshair-size) center-y)
+      (gl:vertex (- center-x crosshair-size) center-y 0.0)
+      (gl:vertex (+ center-x crosshair-size) center-y 0.0)
       ;; Vertical line
-      (gl:vertex center-x (- center-y crosshair-size))
-      (gl:vertex center-x (+ center-y crosshair-size))))
+      (gl:vertex center-x (- center-y crosshair-size) 0.0)
+      (gl:vertex center-x (+ center-y crosshair-size) 0.0))
+    (gl:line-width 1.0))
 
-  ;; Restore matrices
+  ;; Restore OpenGL state manually
+  (gl:enable :depth-test)
+  (gl:enable :lighting)
   (gl:pop-matrix)
   (gl:matrix-mode :projection)
   (gl:pop-matrix)
