@@ -1,6 +1,8 @@
 (in-package #:minecraft-3d)
 
 ;; Update start-game to accept and use the seed and handle mouse input
+
+;; Update start-game to accept and use the seed and handle mouse input
 (defun start-game (&optional (seed 12345))
   "Initialize and start the 3D game with a given seed"
   ;; Initialize the global random state with the seed
@@ -21,9 +23,10 @@
     (setup-opengl *window-width* *window-height*)
 
     (let ((player (make-game-player))
-          (prev-mouse-x nil)
-          (prev-mouse-y nil))
-      ;; Initialize mouse position tracking locally instead of globally
+          (prev-mouse-x (/ *window-width* 2))
+          (prev-mouse-y (/ *window-height* 2))
+          (window-center-x (/ *window-width* 2))
+          (window-center-y (/ *window-height* 2)))
       ;; Initial render
       (render-world player)
 
@@ -51,10 +54,11 @@
 
         ;; Mouse motion event for mouse look - extract x and y and calculate delta
         (:mouse-motion-event (:x mouse-x :y mouse-y)
-         (when (and prev-mouse-x prev-mouse-y)
-           (let ((delta-x (- mouse-x prev-mouse-x))
-                 (delta-y (- mouse-y prev-mouse-y)))
-             (handle-mouse-look player delta-x delta-y)))
+         ;; Calculate delta for mouse look
+         (let ((delta-x (- mouse-x prev-mouse-x))
+               (delta-y (- mouse-y prev-mouse-y)))
+           (handle-mouse-look player delta-x delta-y))
+         ;; Mouse confinement will be handled by OS window manager instead
          (setf prev-mouse-x mouse-x)
          (setf prev-mouse-y mouse-y))
 

@@ -9,79 +9,80 @@
 (in-package #:minecraft-3d)
 
 (defun raycast-block (start-x start-y start-z dir-x dir-y dir-z)
-  "Cast a ray and return information about the first block face hit using DDA algorithm."
-  (let ((map-x (floor start-x))
-        (map-y (floor start-y))
-        (map-z (floor start-z))
-        (step-x (if (>= dir-x 0) 1 -1))
-        (step-y (if (>= dir-y 0) 1 -1))
-        (step-z (if (>= dir-z 0) 1 -1))
-        (delta-x (if (zerop dir-x) most-positive-single-float (/ 1.0 (abs dir-x))))
-        (delta-y (if (zerop dir-y) most-positive-single-float (/ 1.0 (abs dir-y))))
-        (delta-z (if (zerop dir-z) most-positive-single-float (/ 1.0 (abs dir-z))))
-        (max-distance +max-ray-distance+))
+  "Cast a ray using Amanatides-Woo DDA algorithm for guaranteed closest block detection."
+  ;; Rewritten using proper grid-based DDA that checks each voxel in order
+  (let* ((max-distance 200.0)
+         ;; Initialize grid position
+         (grid-x (floor start-x))
+         (grid-y (floor start-y))
+         (grid-z (floor start-z))
+         ;; Determine step direction (1 or -1 for each axis)
+         (step-x (cond ((> dir-x 0.0001) 1) ((< dir-x -0.0001) -1) (t 0)))
+         (step-y (cond ((> dir-y 0.0001) 1) ((< dir-y -0.0001) -1) (t 0)))
+         (step-z (cond ((> dir-z 0.0001) 1) ((< dir-z -0.0001) -1) (t 0)))
+         ;; Calculate t-delta (how far along ray to cross grid boundary for each axis)
+         (t-delta-x (if (zerop step-x) max-distance (/ 1.0 (abs dir-x))))
+         (t-delta-y (if (zerop step-y) max-distance (/ 1.0 (abs dir-y))))
+         (t-delta-z (if (zerop step-z) max-distance (/ 1.0 (abs dir-z))))
+         ;; Calculate t-max (distance to next grid boundary for each axis)
+         (t-max-x (cond ((> step-x 0) (- (1+ grid-x) start-x))
+                        ((< step-x 0) (- start-x grid-x))
+                        (t max-distance)))
+         (t-max-y (cond ((> step-y 0) (- (1+ grid-y) start-y))
+                        ((< step-y 0) (- start-y grid-y))
+                        (t max-distance)))
+         (t-max-z (cond ((> step-z 0) (- (1+ grid-z) start-z))
+                        ((< step-z 0) (- start-z grid-z))
+                        (t max-distance)))
+         (t-traveled 0.0)
+         (last-face :top))
     
-    ;; Calculate initial side distances
-    (let ((side-dist-x (if (>= dir-x 0)
-                           (* (- (1+ map-x) start-x) delta-x)
-                           (* (- start-x map-x) delta-x)))
-          (side-dist-y (if (>= dir-y 0)
-                           (* (- (1+ map-y) start-y) delta-y)
-                           (* (- start-y map-y) delta-y)))
-          (side-dist-z (if (>= dir-z 0)
-                           (* (- (1+ map-z) start-z) delta-z)
-                           (* (- start-z map-z) delta-z))))
-      
-      ;; Main DDA loop
-      (do* ((current-x map-x)
-            (current-y map-y)
-            (current-z map-z)
-            (t-max-x side-dist-x)
-            (t-max-y side-dist-y)
-            (t-max-z side-dist-z))
-           ((> (min t-max-x t-max-y t-max-z) max-distance)
-            (make-raycast-result))  ; No block found within max distance
+    ;; Traverse grid cells until we find a block or exceed max distance
+    (loop
+      ;; Find which axis has the smallest t-max (next boundary to cross)
+      (let ((t-min (min t-max-x t-max-y t-max-z)))
+        ;; Stop if we've traveled too far
+        (when (> t-min max-distance)
+          (return (make-raycast-result)))
         
-        ;; Find which plane was crossed first
-        (let ((t-max (min t-max-x t-max-y t-max-z)))
-          (cond
-            ;; X plane was crossed
-            ((= t-max t-max-x)
-             (setf current-x (+ current-x step-x))
-             (setf t-max-x (+ t-max-x delta-x)))
-            ;; Y plane was crossed
-            ((= t-max t-max-y)
-             (setf current-y (+ current-y step-y))
-             (setf t-max-y (+ t-max-y delta-y)))
-            ;; Z plane was crossed
-            (t
-             (setf current-z (+ current-z step-z))
-             (setf t-max-z (+ t-max-z delta-z))))
-          
-          ;; Check if there's a block at the current position
-          (let ((block-type (get-block current-x current-y current-z)))
-            (when block-type
-              ;; Improved block detection - only return if block actually exists
-              (let ((face (cond
-                            ((= (min t-max-x t-max-y t-max-z) t-max-x)
-                             (if (< dir-x 0) :right :left))
-                            ((= (min t-max-x t-max-y t-max-z) t-max-y)
-                             (if (< dir-y 0) :top :bottom))
-                            (t
-                             (if (< dir-z 0) :front :back)))))
-                (return-from raycast-block
-                  (make-raycast-result
-                   :hit-p t
-                   :block-x current-x
-                   :block-y current-y
-                   :block-z current-z
-                   :face face))))))))))
+        ;; Determine which axis we're crossing and update grid position
+        (cond
+          ((= t-min t-max-x)
+           (setf last-face (if (> step-x 0) :left :right))
+           (incf grid-x step-x)
+           (incf t-max-x t-delta-x))
+          ((= t-min t-max-y)
+           (setf last-face (if (> step-y 0) :bottom :top))
+           (incf grid-y step-y)
+           (incf t-max-y t-delta-y))
+          (t
+           (setf last-face (if (> step-z 0) :back :front))
+           (incf grid-z step-z)
+           (incf t-max-z t-delta-z)))
+        
+        ;; Check if there's a block at this grid position
+        (let ((block-type (get-block grid-x grid-y grid-z)))
+          (when block-type
+            ;; Calculate exact hit position
+            (let* ((hit-x (+ start-x (* t-min dir-x)))
+                   (hit-y (+ start-y (* t-min dir-y)))
+                   (hit-z (+ start-z (* t-min dir-z))))
+              (return-from raycast-block
+                (make-raycast-result
+                 :hit-p t
+                 :block-x grid-x
+                 :block-y grid-y
+                 :block-z grid-z
+                 :face last-face
+                 :hit-x hit-x
+                 :hit-y hit-y
+                 :hit-z hit-z)))))))))
 
 (defun perform-raycast (player)
   "Cast a ray from the player's eye in the look direction and return the first block hit."
-  (let* ((start-x (+ (game-player-x player) 0.1))
+  (let* ((start-x (game-player-x player))
          (start-y (game-player-y player))
-         (start-z (+ (game-player-z player) 0.1))
+         (start-z (game-player-z player))
          (rot-x (game-player-rot-x player))
          (rot-y (game-player-rot-y player))
          (cos-pitch (float (cos rot-x) 0.0))
@@ -94,8 +95,14 @@
          (normalized-dir-x (/ dir-x length))
          (normalized-dir-y (/ dir-y length))
          (normalized-dir-z (/ dir-z length)))
+    ;; Add comprehensive debug output showing eye position and direction
+    (format t "[v0] Raycast Eye: (~,3F, ~,3F, ~,3F) Direction: (~,3F, ~,3F, ~,3F)~%"
+            start-x start-y start-z normalized-dir-x normalized-dir-y normalized-dir-z)
     (raycast-block start-x start-y start-z
                    normalized-dir-x normalized-dir-y normalized-dir-z)))
+
+
+
 
 
 

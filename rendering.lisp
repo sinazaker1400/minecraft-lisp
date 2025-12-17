@@ -39,6 +39,8 @@
                8.0  65.0 8.0
                0.0  1.0 0.0))
 
+(in-package #:minecraft-3d)
+
 (defun render-world (player)
   (gl:clear-color 0.5 0.7 1.0 1.0)
   (gl:clear :color-buffer :depth-buffer)
@@ -59,6 +61,9 @@
          (look-at-x (+ eye-x (* distance forward-x)))
          (look-at-y (+ eye-y (* distance forward-y)))
          (look-at-z (+ eye-z (* distance forward-z))))
+    ;; Add debug output to verify camera position and direction
+    (format t "[v0] Camera Eye: (~,3F, ~,3F, ~,3F) Direction: (~,3F, ~,3F, ~,3F)~%"
+            eye-x eye-y eye-z forward-x forward-y forward-z)
     (glu:look-at eye-x eye-y eye-z
                  look-at-x look-at-y look-at-z
                  0.0 1.0 0.0)
@@ -157,3 +162,4 @@
   (gl:matrix-mode :modelview)
 
   (gl:flush))
+
