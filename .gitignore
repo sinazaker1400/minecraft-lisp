@@ -1,26 +1,23 @@
-```lisp
-# Compiled Lisp files
+```
+# Lisp-specific
 *.fasl
 *.lib
-*.o
-
-# Build artifacts
-build/
-dist/
+*.mem
+*.bin
+*.bundle
 
 # Dependencies
-*.asd.bak
-*.lisp~*
-*~
+.quicklisp/
 
 # Logs and temp files
 *.log
 *.tmp
+*.swp
 
 # Environment
 .env
 .env.local
-*.env.*
+.env.*
 
 # Editors
 .vscode/
@@ -28,14 +25,12 @@ dist/
 *.swp
 *.swo
 
-# System files
+# OS
 .DS_Store
 Thumbs.db
 
-# Coverage and testing
-.coverage
-coverage/
-htmlcov/
-.mypy_cache/
-.pytest_cache/
+# Build artifacts
+dist/
+build/
+target/
 ```
