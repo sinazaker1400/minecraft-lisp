@@ -114,7 +114,8 @@ This game requires:
   - `sdl2-image`
   - `sdl2-mixer`
   - `sdl2-ttf`
-  - `trivial-gamekit`
+  - `cl-opengl`
+  - `cl-glu`
   - `alexandria`
 
 ## Game Modes

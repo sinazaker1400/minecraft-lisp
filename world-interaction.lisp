@@ -1,6 +1,6 @@
 ;; File: world-interaction.lisp
 (defpackage #:minecraft-3d
-  (:use #:cl #:lispbuilder-sdl)
+  (:use #:cl #:sdl2 #:sdl2-image #:sdl2-mixer #:sdl2-ttf)
   (:export #:perform-raycast
            #:break-block
            #:place-block

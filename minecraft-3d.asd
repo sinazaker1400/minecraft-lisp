@@ -2,7 +2,7 @@
   :version "1.0.0"
   :author "AI Assistant"
   :license "MIT"
-  :depends-on ("sdl2" "sdl2-image" "sdl2-mixer" "sdl2-ttf" "trivial-gamekit" "alexandria")
+  :depends-on ("sdl2" "sdl2-image" "sdl2-mixer" "sdl2-ttf" "cl-opengl" "cl-glu" "alexandria")
   :components ((:file "package")
                (:file "defs")
                (:file "inventory")

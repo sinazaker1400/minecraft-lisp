@@ -1,18 +1,56 @@
 ```
-# Lisp-specific
+# Compiled and build artifacts
 *.fasl
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+
+# Lisp-specific
 *.lib
-*.mem
-*.bin
-*.bundle
+*.fas
+*.x86f
+*.lx64fsl
+*.nx64fsl
+*.dx64fsl
+*.pfsl
+*.dfsl
+*.p64fsl
+*.d64fsl
+*.dx32fsl
+*.px32fsl
+*.sparcf
+*.sparccl
+*.fasl
+*.ufsl
+*.fsl
+*.dfsl
+*.p64fsl
+*.d64fsl
+*.dx32fsl
+*.px32fsl
+*.sparcf
+*.sparccl
+
+# Build directories
+build/
+dist/
+target/
+_output/
 
 # Dependencies
-.quicklisp/
+lib/
+dependencies/
+quicklisp/
 
 # Logs and temp files
 *.log
 *.tmp
 *.swp
+*~
 
 # Environment
 .env
@@ -28,9 +66,4 @@
 # OS
 .DS_Store
 Thumbs.db
-
-# Build artifacts
-dist/
-build/
-target/
 ```
