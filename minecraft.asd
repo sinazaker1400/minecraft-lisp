@@ -2,7 +2,7 @@
   :version "0.1.0"
   :author "Sina"
   :license "MIT"
-  :depends-on (:lispbuilder-sdl :cl-opengl :cl-glu)
+  :depends-on ("sdl2" "sdl2-image" "sdl2-mixer" "sdl2-ttf" "cl-opengl" "cl-glu")
   :components ((:file "package")
                (:file "defs" :depends-on ("package"))
                (:file "world-generation" :depends-on ("defs"))
