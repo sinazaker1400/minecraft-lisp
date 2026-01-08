@@ -8,7 +8,7 @@
 (defun main ()
   "Main entry point for the game"
   (sdl2:with-init (:sdl2-init-video :sdl2-init-timer)
-    (sdl2:with-window (win :title \"Minecraft 3D\" :w *window-width* :h *window-height* 
+    (sdl2:with-window (win :title \"Minecraft 3D"\ :w *window-width* :h *window-height* 
                            :flags '(:shown))
       (sdl2:with-gl-context (gl-context win)
         ;; Initialize OpenGL
@@ -235,16 +235,16 @@
   "Render UI elements like inventory and health bar"
   ;; In a real implementation, this would render 2D UI elements
   ;; For now, we'll just print some debug info
-  (format t \"Time of day: ~a~%\" (game-state-time-of-day *game-state*))
-  (format t \"Player position: (~a, ~a, ~a)~%\" 
+  (format t \"Time of day: ~a~%"\ (game-state-time-of-day *game-state*))
+  (format t \"Player position: (~a, ~a, ~a)~%"\ 
           (player-x (game-state-player *game-state*))
           (player-y (game-state-player *game-state*))
           (player-z (game-state-player *game-state*)))
-  (format t \"Player rotation: (~a, ~a)~%\" 
+  (format t \"Player rotation: (~a, ~a)~%"\ 
           (player-rotation-x (game-state-player *game-state*))
           (player-rotation-y (game-state-player *game-state*)))
-  (format t \"Player health: ~a~%\" (player-health (game-state-player *game-state*)))
-  (format t \"Player on ground: ~a~%\" (player-on-ground (game-state-player *game-state*))))
+  (format t \"Player health: ~a~%"\ (player-health (game-state-player *game-state*)))
+  (format t \"Player on ground: ~a~%"\ (player-on-ground (game-state-player *game-state*))))
 
 (defparameter *game-state* nil)
 (defparameter *last-frame-time* 0)
