@@ -13,10 +13,37 @@ rm -rf ~/.cache/common-lisp/sbcl-*/linux-x64-s/home/sina/quicklisp/local-project
 
 to run the project:
 
-sbcl --load ~/quicklisp/setup.lisp --eval '(require :asdf)' --eval '(asdf:load-system :minecraft)' --eval '(minecraft-3d:start-game)'
+sbcl \
+  --load ~/quicklisp/setup.lisp \
+  --eval '(require :asdf)' \
+  --eval '(asdf:load-system :minecraft :force t)'
+
+ then :
+
+ (in-package :minecraft-3d)
+
+ then :
+
+ (start-game)
+
+ or with a custom seed (for example 123456789):
+
+ (start-game 123456789)
+
+ running in 1 line :
+ 
+ sbcl \
+  --load ~/quicklisp/setup.lisp \
+  --eval '(require :asdf)' \
+  --eval '(asdf:load-system :minecraft :force t)' \
+  --eval '(minecraft-3d:start-game)' \
+  --quit
 
 to push commit:
 git -c http.proxy= -c https.proxy= push -u origin main
+
+to zip the projects :
+tar czf minecraft-src.tar.gz *.lisp *.asd
 
 notes :
 

@@ -1,74 +1,70 @@
 (in-package #:minecraft-3d)
 
-;; --- Constants ---
-(defparameter *window-width* 800)
-(defparameter *window-height* 600)
+(defparameter *window-width* 1280)
+(defparameter *window-height* 720)
 
-;; Define the size of a single chunk section (16x16x16)
 (defparameter *chunk-size-x* 16)
 (defparameter *chunk-size-y* 16)
 (defparameter *chunk-size-z* 16)
 
-;; Hash table to store chunk sections, keyed by (list chunk_x chunk_y chunk_z)
-(defparameter *world-chunks* (make-hash-table :test 'equal))
+(defparameter *render-distance-xz* 2)
+(defparameter *render-distance-y* 2)
 
-;; Add global random state for seeding
-(defparameter *game-random-state* (make-random-state))
+(defparameter *world-chunks*
+  (make-hash-table :test #'equal))
 
 (defconstant +max-ray-distance+ 10.0)
 
-;; Mouse look support variables
-(defparameter *mouse-x* 0)
-(defparameter *mouse-y* 0)
-(defparameter *mouse-sensitivity* 0.01) ; Increased from 0.003 to 0.01 for 1:1 mouse tracking
-(defparameter *mouse-captured* nil) ; Track if mouse is captured for look control
+(defparameter *mouse-sensitivity* 0.003)
 
-;; Global variable to track the currently targeted block
-(defparameter *targeted-block* nil) ; Will store (list x y z) or nil if no block targeted
-
-;; --- Data Structures ---
-(defstruct world-block
-  "A block in the world"
-  type
-  (x 0 :type fixnum)
-  (y 0 :type fixnum)
-  (z 0 :type fixnum))
+(defparameter *targeted-block* nil)
 
 (defstruct chunk
-  "A 16x16x16 chunk section of the world"
-  (x 0 :type fixnum) ; Chunk's X coordinate in the world
-  (y 0 :type fixnum) ; Chunk's Y coordinate in the world
-  (z 0 :type fixnum) ; Chunk's Z coordinate in the world
-  (blocks (make-array (list *chunk-size-x* *chunk-size-y* *chunk-size-z*)
-                      :initial-element nil
-                      :element-type '(or symbol null))) ; Array storing block types
-  ;; Add a slot for visible faces geometry (list of face definitions)
-  (visible-faces-geometry '()) ; Initialize as an empty list
-  ;; Add a flag to mark if the geometry needs updating
-  (needs-geometry-update t)) ; Initialize as true
+  x
+  y
+  z
+
+  (blocks
+   (make-array '(16 16 16)
+               :initial-element nil))
+
+  (visible-faces-geometry nil)
+  (needs-geometry-update t))
 
 (defstruct game-player
-  (x 8.0 :type single-float)
-  (y 80.0 :type single-float)  ; Start above ground
-  (z 8.0 :type single-float)
-  (rot-x 0.0 :type single-float)  ; Looking direction (pitch)
-  (rot-y 0.0 :type single-float)) ; Looking direction (yaw)
+  (x 8.0f0)
+  (y 80.0f0)
+  (z 8.0f0)
 
-;; Add this if it's not already in your defs.lisp file
+  (rot-x 0.0f0)
+  (rot-y 0.0f0))
+
 (defstruct raycast-result
-  (hit-p nil :type boolean)
-  (block-x 0 :type fixnum)
-  (block-y 0 :type fixnum)
-  (block-z 0 :type fixnum)
-  (face :unknown :type (member :top :bottom :front :back :left :right :unknown))
-  (hit-x 0.0 :type single-float)
-  (hit-y 0.0 :type single-float)
-  (hit-z 0.0 :type single-float))
+  (hit-p nil)
 
-;; Add function to initialize random state with a seed
+  (block-x 0)
+  (block-y 0)
+  (block-z 0)
+
+  (face :unknown)
+
+  (hit-x 0.0f0)
+  (hit-y 0.0f0)
+  (hit-z 0.0f0))
+
+(defparameter *game-random-state*
+  (make-random-state))
+
 (defun initialize-randomness (seed)
-  "Initialize the random state with a given seed for reproducible world generation"
-  (setf *game-random-state* (make-random-state))
-  ;; Set the random state seed using Common Lisp's built-in mechanism
+  "Initialize random state using a seed."
+
+  (setf *game-random-state*
+        (make-random-state t))
+
+  ;; advance state deterministically
   (dotimes (i (mod seed 1000))
-    (random 1000000 *game-random-state*)))
+    (random 1000000 *game-random-state*))
+
+  *game-random-state*)
+
+(defparameter *debug-mode* nil)

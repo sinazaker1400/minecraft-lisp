@@ -1,8 +1,10 @@
 (in-package #:minecraft-3d)
 
+(defparameter *move-speed* 200.0f0)
+
 (defun handle-input (player)
   "Handles keyboard input for player movement"
-  (let ((speed 1.0))
+  (let ((speed *move-speed*))
     ;; Movement (WASD keys) with directional calculation
     (when (sdl:key-down-p :sdl-key-w)
       (incf (game-player-x player)

@@ -1,165 +1,346 @@
 (in-package #:minecraft-3d)
 
-;; Function to get block color (defined BEFORE calculate-face-geometry uses it)
-;; This function must be available before calculate-face-geometry is defined.
-(defun get-block-color (block-type)
-  (case block-type
-    (grass (values 0.2 0.7 0.2))
-    (dirt (values 0.6 0.4 0.2))
-    (stone (values 0.5 0.5 0.5))
-    (wood (values 0.6 0.4 0.2))
-    (otherwise (values 0.5 0.5 0.5))))
+(defun draw-face (face-data)
+  (gl:with-primitives :quads
+    (dolist (vertex face-data)
+      (destructuring-bind
+          (x y z nx ny nz r g b)
+          vertex
 
-;; Old draw-cube function is no longer used directly for rendering.
-;; (defun draw-cube (x y z block-type) ...)
+        (gl:normal nx ny nz)
+        (gl:color r g b)
+        (gl:vertex x y z)))))
 
-(defun init-opengl (width height)
-  (gl:viewport 0 0 width height)
-  (gl:enable :depth-test)
-  (gl:depth-func :less)
-  (gl:clear-color 0.5 0.7 1.0 1.0))
+(defun draw-highlighted-block (bx by bz)
 
-(defun setup-opengl (width height)
+  (let ((half-size 0.5))
+
+    (gl:disable :lighting)
+
+    (gl:color 1.0 1.0 0.0)
+    (gl:line-width 2.0)
+
+    ;; top
+    (gl:with-primitives :line-loop
+      (gl:vertex (- bx half-size) (+ by half-size) (- bz half-size))
+      (gl:vertex (+ bx half-size) (+ by half-size) (- bz half-size))
+      (gl:vertex (+ bx half-size) (+ by half-size) (+ bz half-size))
+      (gl:vertex (- bx half-size) (+ by half-size) (+ bz half-size)))
+
+    ;; bottom
+    (gl:with-primitives :line-loop
+      (gl:vertex (- bx half-size) (- by half-size) (- bz half-size))
+      (gl:vertex (+ bx half-size) (- by half-size) (- bz half-size))
+      (gl:vertex (+ bx half-size) (- by half-size) (+ bz half-size))
+      (gl:vertex (- bx half-size) (- by half-size) (+ bz half-size)))
+
+    ;; verticals
+    (gl:with-primitives :lines
+
+      (gl:vertex (- bx half-size) (- by half-size) (- bz half-size))
+      (gl:vertex (- bx half-size) (+ by half-size) (- bz half-size))
+
+      (gl:vertex (+ bx half-size) (- by half-size) (- bz half-size))
+      (gl:vertex (+ bx half-size) (+ by half-size) (- bz half-size))
+
+      (gl:vertex (+ bx half-size) (- by half-size) (+ bz half-size))
+      (gl:vertex (+ bx half-size) (+ by half-size) (+ bz half-size))
+
+      (gl:vertex (- bx half-size) (- by half-size) (+ bz half-size))
+      (gl:vertex (- bx half-size) (+ by half-size) (+ bz half-size)))
+
+    (gl:line-width 1.0)
+    (gl:enable :lighting)))
+
+(defun draw-crosshair ()
+
   (gl:matrix-mode :projection)
+  (gl:push-matrix)
   (gl:load-identity)
-  (let* ((fovy 45.0)
-         (aspect (/ width height))
-         (near 0.1)
-         (far 100.0)
-         (f (/ 1.0 (tan (/ (* fovy 3.14159) 180.0 2.0)))))
-    (gl:frustum (* (/ -1.0 aspect) f near)
-                (* (/ 1.0 aspect) f near)
-                (* -1.0 f near)
-                (* 1.0 f near)
-                near
-                far))
-  (gl:matrix-mode :modelview)
-  (gl:load-identity)
-  (glu:look-at 12.0 70.0 12.0
-               8.0  65.0 8.0
-               0.0  1.0 0.0))
 
-(in-package #:minecraft-3d)
-
-(defun render-world (player)
-  (gl:clear-color 0.5 0.7 1.0 1.0)
-  (gl:clear :color-buffer :depth-buffer)
+  (gl:ortho
+   0.0
+   (float *window-width*)
+   (float *window-height*)
+   0.0
+   -1.0
+   1.0)
 
   (gl:matrix-mode :modelview)
+  (gl:push-matrix)
   (gl:load-identity)
+
+  (gl:disable :depth-test)
+  (gl:disable :lighting)
+
+  (let ((cx (/ *window-width* 2.0))
+        (cy (/ *window-height* 2.0))
+        (size 10.0))
+
+    (gl:color 1.0 1.0 1.0)
+
+    (gl:with-primitives :lines
+
+      (gl:vertex (- cx size) cy 0.0)
+      (gl:vertex (+ cx size) cy 0.0)
+
+      (gl:vertex cx (- cy size) 0.0)
+      (gl:vertex cx (+ cy size) 0.0)))
+
+  (gl:enable :depth-test)
+  (gl:enable :lighting)
+
+  (gl:pop-matrix)
+
+  (gl:matrix-mode :projection)
+  (gl:pop-matrix)
+
+  (gl:matrix-mode :modelview))
+
+(defun render-chunk (chunk)
+
+  (when (or (chunk-needs-geometry-update chunk)
+            (null (chunk-visible-faces-geometry chunk)))
+
+    (calculate-chunk-geometry chunk)
+
+    (setf (chunk-needs-geometry-update chunk)
+          nil))
+
+  (dolist (face-data
+           (chunk-visible-faces-geometry chunk))
+
+    (draw-face face-data)))
+
+(defun setup-camera (player)
 
   (let* ((eye-x (game-player-x player))
          (eye-y (game-player-y player))
          (eye-z (game-player-z player))
-         (rot-x (game-player-rot-x player))
-         (rot-y (game-player-rot-y player))
-         (cos-pitch (float (cos rot-x) 0.0))
-         (forward-x (* cos-pitch (float (cos rot-y) 0.0)))
-         (forward-y (float (sin rot-x) 0.0))
-         (forward-z (* cos-pitch (float (sin rot-y) 0.0)))
-         (distance 1.0)
-         (look-at-x (+ eye-x (* distance forward-x)))
-         (look-at-y (+ eye-y (* distance forward-y)))
-         (look-at-z (+ eye-z (* distance forward-z))))
-    ;; Add debug output to verify camera position and direction
-    (format t "[v0] Camera Eye: (~,3F, ~,3F, ~,3F) Direction: (~,3F, ~,3F, ~,3F)~%"
-            eye-x eye-y eye-z forward-x forward-y forward-z)
-    (glu:look-at eye-x eye-y eye-z
-                 look-at-x look-at-y look-at-z
-                 0.0 1.0 0.0)
 
-    (let ((render-distance-xz 2)
-          (render-distance-y  4))
-      (multiple-value-bind (player-chunk-x player-chunk-y player-chunk-z)
-          (world-coords-to-chunk-coords eye-x eye-y eye-z)
-        (loop for cx from (- player-chunk-x render-distance-xz) to (+ player-chunk-x render-distance-xz) do
-          (loop for cy from (- player-chunk-y render-distance-y) to (+ player-chunk-y render-distance-y) do
-            (loop for cz from (- player-chunk-z render-distance-xz) to (+ player-chunk-z render-distance-xz) do
-              (let ((chunk (get-chunk cx cy cz)))
-                ;; Always recalculate geometry if flag is set or if geometry is null
-                (when (or (null (chunk-visible-faces-geometry chunk))
-                          (chunk-needs-geometry-update chunk))
-                  (calculate-chunk-geometry chunk))
-                ;; Render the visible faces
-                (dolist (face-data (chunk-visible-faces-geometry chunk))
-                  (gl:with-primitives :quads
-                    (dolist (vertex face-data)
-                      (destructuring-bind (x y z nx ny nz r g b) vertex
-                        (gl:normal nx ny nz)
-                        (gl:color r g b)
-                        (gl:vertex x y z))))))))))))
+         (pitch (game-player-rot-x player))
+         (yaw   (game-player-rot-y player))
 
-  ;; Draw highlighted border around targeted block (3D)
+         (cos-pitch (cos pitch))
+
+         (dir-x (* cos-pitch (cos yaw)))
+         (dir-y (sin pitch))
+         (dir-z (* cos-pitch (sin yaw))))
+
+    (glu:look-at
+     eye-x eye-y eye-z
+
+     (+ eye-x dir-x)
+     (+ eye-y dir-y)
+     (+ eye-z dir-z)
+
+     0.0 1.0 0.0)))
+
+(defun render-visible-chunks (player)
+
+  (multiple-value-bind (pcx pcy pcz)
+
+      (world-coords-to-chunk-coords
+       (game-player-x player)
+       (game-player-y player)
+       (game-player-z player))
+
+    (loop
+      for cx from (- pcx *render-distance-xz*)
+      to       (+ pcx *render-distance-xz*)
+      do
+
+      (loop
+        for cy from (- pcy *render-distance-y*)
+        to       (+ pcy *render-distance-y*)
+        do
+
+        (loop
+          for cz from (- pcz *render-distance-xz*)
+          to       (+ pcz *render-distance-xz*)
+          do
+
+          (render-chunk
+           (get-chunk cx cy cz)))))))
+
+(defun render-world (player)
+
+  (gl:clear-color 0.5 0.7 1.0 1.0)
+
+  (gl:clear
+   :color-buffer
+   :depth-buffer)
+
+  (gl:matrix-mode :modelview)
+  (gl:load-identity)
+
+  (setup-camera player)
+
+  (render-visible-chunks player)
+
   (when *targeted-block*
-    (destructuring-bind (bx by bz) *targeted-block*
-      (gl:disable :lighting)
-      (gl:color 1.0 1.0 0.0)  ; Yellow highlight
-      (gl:line-width 2.0)
-      ;; Adjust highlight box to match block rendering (centered at integer coords with 0.5 size)
-      (let ((half-size 0.5))
-        ;; Draw cube outline using line segments around the block center
-        (gl:with-primitives :line-loop
-          ;; Top face
-          (gl:vertex (float (- bx half-size)) (float (+ by half-size)) (float (- bz half-size)))
-          (gl:vertex (float (+ bx half-size)) (float (+ by half-size)) (float (- bz half-size)))
-          (gl:vertex (float (+ bx half-size)) (float (+ by half-size)) (float (+ bz half-size)))
-          (gl:vertex (float (- bx half-size)) (float (+ by half-size)) (float (+ bz half-size))))
-        (gl:with-primitives :line-loop
-          ;; Bottom face
-          (gl:vertex (float (- bx half-size)) (float (- by half-size)) (float (- bz half-size)))
-          (gl:vertex (float (+ bx half-size)) (float (- by half-size)) (float (- bz half-size)))
-          (gl:vertex (float (+ bx half-size)) (float (- by half-size)) (float (+ bz half-size)))
-          (gl:vertex (float (- bx half-size)) (float (- by half-size)) (float (+ bz half-size))))
-        ;; Vertical edges
-        (gl:with-primitives :lines
-          (gl:vertex (float (- bx half-size)) (float (- by half-size)) (float (- bz half-size)))
-          (gl:vertex (float (- bx half-size)) (float (+ by half-size)) (float (- bz half-size)))
-          (gl:vertex (float (+ bx half-size)) (float (- by half-size)) (float (- bz half-size)))
-          (gl:vertex (float (+ bx half-size)) (float (+ by half-size)) (float (- bz half-size)))
-          (gl:vertex (float (+ bx half-size)) (float (- by half-size)) (float (+ bz half-size)))
-          (gl:vertex (float (+ bx half-size)) (float (+ by half-size)) (float (+ bz half-size)))
-          (gl:vertex (float (- bx half-size)) (float (- by half-size)) (float (+ bz half-size)))
-          (gl:vertex (float (- bx half-size)) (float (+ by half-size)) (float (+ bz half-size)))))
-      (gl:line-width 1.0)
-      (gl:enable :lighting)))
 
-  ;; Simplified 2D crosshair rendering without push-attrib
-  ;; Save current matrix state manually
-  (gl:matrix-mode :projection)
-  (gl:push-matrix)
-  (gl:load-identity)
-  (gl:ortho 0.0 (float *window-width* 0.0) (float *window-height* 0.0) 0.0 -1.0 1.0)
-  
-  (gl:matrix-mode :modelview)
-  (gl:push-matrix)
-  (gl:load-identity)
+    (destructuring-bind
+        (bx by bz)
+        *targeted-block*
 
-  ;; Disable depth testing to render on top
-  (gl:disable :depth-test)
-  (gl:disable :lighting)
+      (draw-highlighted-block
+       bx by bz)))
 
-  ;; Draw white crosshair at center
-  (let ((center-x (/ *window-width* 2.0))
-        (center-y (/ *window-height* 2.0))
-        (crosshair-size 10.0))
-    (gl:color 1.0 1.0 1.0)
-    (gl:line-width 2.0)
-    (gl:with-primitives :lines
-      ;; Horizontal line
-      (gl:vertex (- center-x crosshair-size) center-y 0.0)
-      (gl:vertex (+ center-x crosshair-size) center-y 0.0)
-      ;; Vertical line
-      (gl:vertex center-x (- center-y crosshair-size) 0.0)
-      (gl:vertex center-x (+ center-y crosshair-size) 0.0))
-    (gl:line-width 1.0))
-
-  ;; Restore OpenGL state manually
-  (gl:enable :depth-test)
-  (gl:enable :lighting)
-  (gl:pop-matrix)
-  (gl:matrix-mode :projection)
-  (gl:pop-matrix)
-  (gl:matrix-mode :modelview)
+  (draw-crosshair)
 
   (gl:flush))
 
+(defun block-color (block)
+
+  (case block
+    (grass '(0.2 0.8 0.2))
+    (dirt  '(0.5 0.3 0.1))
+    (stone '(0.6 0.6 0.6))
+    (t     '(1.0 1.0 1.0))))
+
+(defun make-cube-face
+       (x y z nx ny nz block)
+
+  (destructuring-bind
+      (r g b)
+      (block-color block)
+
+    (cond
+
+      ((and (= nx 1) (= ny 0) (= nz 0))
+       (list
+        (list (+ x 1) y z nx ny nz r g b)
+        (list (+ x 1) (+ y 1) z nx ny nz r g b)
+        (list (+ x 1) (+ y 1) (+ z 1) nx ny nz r g b)
+        (list (+ x 1) y (+ z 1) nx ny nz r g b)))
+
+      ((and (= nx -1) (= ny 0) (= nz 0))
+       (list
+        (list x y z nx ny nz r g b)
+        (list x y (+ z 1) nx ny nz r g b)
+        (list x (+ y 1) (+ z 1) nx ny nz r g b)
+        (list x (+ y 1) z nx ny nz r g b)))
+
+      ((and (= ny 1) (= nx 0) (= nz 0))
+       (list
+        (list x (+ y 1) z nx ny nz r g b)
+        (list x (+ y 1) (+ z 1) nx ny nz r g b)
+        (list (+ x 1) (+ y 1) (+ z 1) nx ny nz r g b)
+        (list (+ x 1) (+ y 1) z nx ny nz r g b)))
+
+      ((and (= ny -1) (= nx 0) (= nz 0))
+       (list
+        (list x y z nx ny nz r g b)
+        (list (+ x 1) y z nx ny nz r g b)
+        (list (+ x 1) y (+ z 1) nx ny nz r g b)
+        (list x y (+ z 1) nx ny nz r g b)))
+
+      ((and (= nz 1) (= nx 0) (= ny 0))
+       (list
+        (list x y (+ z 1) nx ny nz r g b)
+        (list (+ x 1) y (+ z 1) nx ny nz r g b)
+        (list (+ x 1) (+ y 1) (+ z 1) nx ny nz r g b)
+        (list x (+ y 1) (+ z 1) nx ny nz r g b)))
+
+      (t
+       (list
+        (list x y z nx ny nz r g b)
+        (list x (+ y 1) z nx ny nz r g b)
+        (list (+ x 1) (+ y 1) z nx ny nz r g b)
+        (list (+ x 1) y z nx ny nz r g b))))))
+
+(defun calculate-chunk-geometry (chunk)
+
+  (let ((faces nil))
+
+    (loop
+      for lx below 16 do
+
+      (loop
+        for ly below 16 do
+
+        (loop
+          for lz below 16 do
+
+          (let ((block
+                 (aref
+                  (chunk-blocks chunk)
+                  lx ly lz)))
+
+            (when block
+
+              (let ((wx (+ (* (chunk-x chunk) 16) lx))
+                    (wy (+ (* (chunk-y chunk) 16) ly))
+                    (wz (+ (* (chunk-z chunk) 16) lz)))
+
+                (unless (find-block (1+ wx) wy wz)
+                  (push
+                   (make-cube-face
+                    wx wy wz
+                    1 0 0
+                    block)
+                   faces))
+
+                (unless (find-block (1- wx) wy wz)
+                  (push
+                   (make-cube-face
+                    wx wy wz
+                    -1 0 0
+                    block)
+                   faces))
+
+                (unless (find-block wx (1+ wy) wz)
+                  (push
+                   (make-cube-face
+                    wx wy wz
+                    0 1 0
+                    block)
+                   faces))
+
+                (unless (find-block wx (1- wy) wz)
+                  (push
+                   (make-cube-face
+                    wx wy wz
+                    0 -1 0
+                    block)
+                   faces))
+
+                (unless (find-block wx wy (1+ wz))
+                  (push
+                   (make-cube-face
+                    wx wy wz
+                    0 0 1
+                    block)
+                   faces))
+
+                (unless (find-block wx wy (1- wz))
+                  (push
+                   (make-cube-face
+                    wx wy wz
+                    0 0 -1
+                    block)
+                   faces))))))))
+
+    (setf
+     (chunk-visible-faces-geometry chunk)
+     faces)))
+
+(defun update-chunk-geometries ()
+
+  (let ((chunks nil))
+
+    (maphash
+     (lambda (k v)
+       (declare (ignore k))
+       (push v chunks))
+     *world-chunks*)
+
+    (dolist (chunk chunks)
+
+      (when (chunk-needs-geometry-update chunk)
+
+        (calculate-chunk-geometry chunk)
+
+        (setf (chunk-needs-geometry-update chunk)
+              nil)))))
