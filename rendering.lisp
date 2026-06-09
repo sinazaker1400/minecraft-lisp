@@ -1,346 +1,95 @@
-(in-package #:minecraft-3d)
+(in-package :minecraft-3d)
 
-(defun draw-face (face-data)
-  (gl:with-primitives :quads
-    (dolist (vertex face-data)
-      (destructuring-bind
-          (x y z nx ny nz r g b)
-          vertex
+;; ====== VERTEX & FACE DEFINITIONS ======
+;; Cube vertices (normalized to 1x1x1)
+(defparameter *cube-vertices*
+  #(0.0 0.0 0.0  1.0 0.0 0.0  1.0 1.0 0.0  0.0 1.0 0.0  ;; Front
+    1.0 0.0 1.0  0.0 0.0 1.0  0.0 1.0 1.0  1.0 1.0 1.0  ;; Back
+    0.0 0.0 1.0  0.0 0.0 0.0  0.0 1.0 0.0  0.0 1.0 1.0  ;; Left
+    1.0 0.0 0.0  1.0 0.0 1.0  1.0 1.0 1.0  1.0 1.0 0.0  ;; Right
+    0.0 1.0 0.0  1.0 1.0 0.0  1.0 1.0 1.0  0.0 1.0 1.0  ;; Top
+    0.0 0.0 1.0  1.0 0.0 1.0  1.0 0.0 0.0  0.0 0.0 0.0)) ;; Bottom
 
-        (gl:normal nx ny nz)
-        (gl:color r g b)
-        (gl:vertex x y z)))))
+;; Face indices (quads - 2 triangles each)
+(defparameter *cube-faces*
+  #(0 1 2  2 3 0     ;; Front
+    4 5 6  6 7 4     ;; Back
+    8 9 10 10 11 8   ;; Left
+    12 13 14 14 15 12 ;; Right
+    16 17 18 18 19 16 ;; Top
+    20 21 22 22 23 20)) ;; Bottom
 
-(defun draw-highlighted-block (bx by bz)
+(defun render-block (x y z block-id)
+  "Render a single block at position"
+  (when (> block-id 0) ;; Don't render air
+    (let ((color (get-block-color block-id)))
+      (gl:color3 (aref color 0) (aref color 1) (aref color 2))
+      (gl:push-matrix)
+      (gl:translate (float x) (float y) (float z))
+      
+      ;; Draw cube as triangles
+      (gl:with-primitives :triangles
+        (loop for i from 0 below (length *cube-faces*) by 3 do
+          (let ((v1 (* (aref *cube-faces* i) 3))
+                (v2 (* (aref *cube-faces* (+ i 1)) 3))
+                (v3 (* (aref *cube-faces* (+ i 2)) 3)))
+            (gl:vertex (aref *cube-vertices* v1)
+                       (aref *cube-vertices* (+ v1 1))
+                       (aref *cube-vertices* (+ v1 2)))
+            (gl:vertex (aref *cube-vertices* v2)
+                       (aref *cube-vertices* (+ v2 1))
+                       (aref *cube-vertices* (+ v2 2)))
+            (gl:vertex (aref *cube-vertices* v3)
+                       (aref *cube-vertices* (+ v3 1))
+                       (aref *cube-vertices* (+ v3 2))))))
+      
+      (gl:pop-matrix))))
 
-  (let ((half-size 0.5))
+(defun should-render-face-p (x y z direction)
+  "Check if a face should be rendered (not blocked by adjacent block)"
+  (multiple-value-bind (nx ny nz)
+      (ecase direction
+        (:front (values x y (+ z 1)))
+        (:back (values x y (- z 1)))
+        (:left (values (- x 1) y z))
+        (:right (values (+ x 1) y z))
+        (:top (values x (+ y 1) z))
+        (:bottom (values x (- y 1) z)))
+    (zerop (or (get-block nx ny nz) 0))))
 
-    (gl:disable :lighting)
+(defun render-chunk (chunk player)
+  "Render visible blocks in a chunk"
+  (let ((blocks (chunk-blocks chunk))
+        (chunk-x (chunk-x chunk))
+        (chunk-z (chunk-z chunk))
+        (player-chunk-dist 3)) ;; Only render chunks this distance away
+    ;; Check if chunk is in view distance
+    (let ((dist (+ (abs (- (floor (game-player-x player) *chunk-size*) chunk-x))
+                   (abs (- (floor (game-player-z player) *chunk-size*) chunk-z)))))
+      (when (<= dist player-chunk-dist)
+        ;; Render each block
+        (dotimes (lx *chunk-size*)
+          (dotimes (ly *chunk-height*)
+            (dotimes (lz *chunk-size*)
+              (let ((block-id (aref blocks lx ly lz)))
+                (when (> block-id 0) ;; Only render non-air blocks
+                  (let ((world-x (+ (* chunk-x *chunk-size*) lx))
+                        (world-y ly)
+                        (world-z (+ (* chunk-z *chunk-size*) lz)))
+                    (render-block world-x world-y world-z block-id)))))))))))
 
-    (gl:color 1.0 1.0 0.0)
-    (gl:line-width 2.0)
-
-    ;; top
-    (gl:with-primitives :line-loop
-      (gl:vertex (- bx half-size) (+ by half-size) (- bz half-size))
-      (gl:vertex (+ bx half-size) (+ by half-size) (- bz half-size))
-      (gl:vertex (+ bx half-size) (+ by half-size) (+ bz half-size))
-      (gl:vertex (- bx half-size) (+ by half-size) (+ bz half-size)))
-
-    ;; bottom
-    (gl:with-primitives :line-loop
-      (gl:vertex (- bx half-size) (- by half-size) (- bz half-size))
-      (gl:vertex (+ bx half-size) (- by half-size) (- bz half-size))
-      (gl:vertex (+ bx half-size) (- by half-size) (+ bz half-size))
-      (gl:vertex (- bx half-size) (- by half-size) (+ bz half-size)))
-
-    ;; verticals
-    (gl:with-primitives :lines
-
-      (gl:vertex (- bx half-size) (- by half-size) (- bz half-size))
-      (gl:vertex (- bx half-size) (+ by half-size) (- bz half-size))
-
-      (gl:vertex (+ bx half-size) (- by half-size) (- bz half-size))
-      (gl:vertex (+ bx half-size) (+ by half-size) (- bz half-size))
-
-      (gl:vertex (+ bx half-size) (- by half-size) (+ bz half-size))
-      (gl:vertex (+ bx half-size) (+ by half-size) (+ bz half-size))
-
-      (gl:vertex (- bx half-size) (- by half-size) (+ bz half-size))
-      (gl:vertex (- bx half-size) (+ by half-size) (+ bz half-size)))
-
-    (gl:line-width 1.0)
-    (gl:enable :lighting)))
-
-(defun draw-crosshair ()
-
-  (gl:matrix-mode :projection)
-  (gl:push-matrix)
-  (gl:load-identity)
-
-  (gl:ortho
-   0.0
-   (float *window-width*)
-   (float *window-height*)
-   0.0
-   -1.0
-   1.0)
-
-  (gl:matrix-mode :modelview)
-  (gl:push-matrix)
-  (gl:load-identity)
-
-  (gl:disable :depth-test)
-  (gl:disable :lighting)
-
-  (let ((cx (/ *window-width* 2.0))
-        (cy (/ *window-height* 2.0))
-        (size 10.0))
-
-    (gl:color 1.0 1.0 1.0)
-
-    (gl:with-primitives :lines
-
-      (gl:vertex (- cx size) cy 0.0)
-      (gl:vertex (+ cx size) cy 0.0)
-
-      (gl:vertex cx (- cy size) 0.0)
-      (gl:vertex cx (+ cy size) 0.0)))
-
-  (gl:enable :depth-test)
-  (gl:enable :lighting)
-
-  (gl:pop-matrix)
-
-  (gl:matrix-mode :projection)
-  (gl:pop-matrix)
-
-  (gl:matrix-mode :modelview))
-
-(defun render-chunk (chunk)
-
-  (when (or (chunk-needs-geometry-update chunk)
-            (null (chunk-visible-faces-geometry chunk)))
-
-    (calculate-chunk-geometry chunk)
-
-    (setf (chunk-needs-geometry-update chunk)
-          nil))
-
-  (dolist (face-data
-           (chunk-visible-faces-geometry chunk))
-
-    (draw-face face-data)))
-
-(defun setup-camera (player)
-
-  (let* ((eye-x (game-player-x player))
-         (eye-y (game-player-y player))
-         (eye-z (game-player-z player))
-
-         (pitch (game-player-rot-x player))
-         (yaw   (game-player-rot-y player))
-
-         (cos-pitch (cos pitch))
-
-         (dir-x (* cos-pitch (cos yaw)))
-         (dir-y (sin pitch))
-         (dir-z (* cos-pitch (sin yaw))))
-
-    (glu:look-at
-     eye-x eye-y eye-z
-
-     (+ eye-x dir-x)
-     (+ eye-y dir-y)
-     (+ eye-z dir-z)
-
-     0.0 1.0 0.0)))
-
-(defun render-visible-chunks (player)
-
-  (multiple-value-bind (pcx pcy pcz)
-
-      (world-coords-to-chunk-coords
-       (game-player-x player)
-       (game-player-y player)
-       (game-player-z player))
-
-    (loop
-      for cx from (- pcx *render-distance-xz*)
-      to       (+ pcx *render-distance-xz*)
-      do
-
-      (loop
-        for cy from (- pcy *render-distance-y*)
-        to       (+ pcy *render-distance-y*)
-        do
-
-        (loop
-          for cz from (- pcz *render-distance-xz*)
-          to       (+ pcz *render-distance-xz*)
-          do
-
-          (render-chunk
-           (get-chunk cx cy cz)))))))
-
-(defun render-world (player)
-
-  (gl:clear-color 0.5 0.7 1.0 1.0)
-
-  (gl:clear
-   :color-buffer
-   :depth-buffer)
-
-  (gl:matrix-mode :modelview)
-  (gl:load-identity)
-
+(defun render-scene (player)
+  "Render the entire visible scene"
+  (gl:clear :color-buffer-bit :depth-buffer-bit)
+  
+  ;; Set up camera
   (setup-camera player)
-
-  (render-visible-chunks player)
-
-  (when *targeted-block*
-
-    (destructuring-bind
-        (bx by bz)
-        *targeted-block*
-
-      (draw-highlighted-block
-       bx by bz)))
-
-  (draw-crosshair)
-
-  (gl:flush))
-
-(defun block-color (block)
-
-  (case block
-    (grass '(0.2 0.8 0.2))
-    (dirt  '(0.5 0.3 0.1))
-    (stone '(0.6 0.6 0.6))
-    (t     '(1.0 1.0 1.0))))
-
-(defun make-cube-face
-       (x y z nx ny nz block)
-
-  (destructuring-bind
-      (r g b)
-      (block-color block)
-
-    (cond
-
-      ((and (= nx 1) (= ny 0) (= nz 0))
-       (list
-        (list (+ x 1) y z nx ny nz r g b)
-        (list (+ x 1) (+ y 1) z nx ny nz r g b)
-        (list (+ x 1) (+ y 1) (+ z 1) nx ny nz r g b)
-        (list (+ x 1) y (+ z 1) nx ny nz r g b)))
-
-      ((and (= nx -1) (= ny 0) (= nz 0))
-       (list
-        (list x y z nx ny nz r g b)
-        (list x y (+ z 1) nx ny nz r g b)
-        (list x (+ y 1) (+ z 1) nx ny nz r g b)
-        (list x (+ y 1) z nx ny nz r g b)))
-
-      ((and (= ny 1) (= nx 0) (= nz 0))
-       (list
-        (list x (+ y 1) z nx ny nz r g b)
-        (list x (+ y 1) (+ z 1) nx ny nz r g b)
-        (list (+ x 1) (+ y 1) (+ z 1) nx ny nz r g b)
-        (list (+ x 1) (+ y 1) z nx ny nz r g b)))
-
-      ((and (= ny -1) (= nx 0) (= nz 0))
-       (list
-        (list x y z nx ny nz r g b)
-        (list (+ x 1) y z nx ny nz r g b)
-        (list (+ x 1) y (+ z 1) nx ny nz r g b)
-        (list x y (+ z 1) nx ny nz r g b)))
-
-      ((and (= nz 1) (= nx 0) (= ny 0))
-       (list
-        (list x y (+ z 1) nx ny nz r g b)
-        (list (+ x 1) y (+ z 1) nx ny nz r g b)
-        (list (+ x 1) (+ y 1) (+ z 1) nx ny nz r g b)
-        (list x (+ y 1) (+ z 1) nx ny nz r g b)))
-
-      (t
-       (list
-        (list x y z nx ny nz r g b)
-        (list x (+ y 1) z nx ny nz r g b)
-        (list (+ x 1) (+ y 1) z nx ny nz r g b)
-        (list (+ x 1) y z nx ny nz r g b))))))
-
-(defun calculate-chunk-geometry (chunk)
-
-  (let ((faces nil))
-
-    (loop
-      for lx below 16 do
-
-      (loop
-        for ly below 16 do
-
-        (loop
-          for lz below 16 do
-
-          (let ((block
-                 (aref
-                  (chunk-blocks chunk)
-                  lx ly lz)))
-
-            (when block
-
-              (let ((wx (+ (* (chunk-x chunk) 16) lx))
-                    (wy (+ (* (chunk-y chunk) 16) ly))
-                    (wz (+ (* (chunk-z chunk) 16) lz)))
-
-                (unless (find-block (1+ wx) wy wz)
-                  (push
-                   (make-cube-face
-                    wx wy wz
-                    1 0 0
-                    block)
-                   faces))
-
-                (unless (find-block (1- wx) wy wz)
-                  (push
-                   (make-cube-face
-                    wx wy wz
-                    -1 0 0
-                    block)
-                   faces))
-
-                (unless (find-block wx (1+ wy) wz)
-                  (push
-                   (make-cube-face
-                    wx wy wz
-                    0 1 0
-                    block)
-                   faces))
-
-                (unless (find-block wx (1- wy) wz)
-                  (push
-                   (make-cube-face
-                    wx wy wz
-                    0 -1 0
-                    block)
-                   faces))
-
-                (unless (find-block wx wy (1+ wz))
-                  (push
-                   (make-cube-face
-                    wx wy wz
-                    0 0 1
-                    block)
-                   faces))
-
-                (unless (find-block wx wy (1- wz))
-                  (push
-                   (make-cube-face
-                    wx wy wz
-                    0 0 -1
-                    block)
-                   faces))))))))
-
-    (setf
-     (chunk-visible-faces-geometry chunk)
-     faces)))
-
-(defun update-chunk-geometries ()
-
-  (let ((chunks nil))
-
-    (maphash
-     (lambda (k v)
-       (declare (ignore k))
-       (push v chunks))
-     *world-chunks*)
-
-    (dolist (chunk chunks)
-
-      (when (chunk-needs-geometry-update chunk)
-
-        (calculate-chunk-geometry chunk)
-
-        (setf (chunk-needs-geometry-update chunk)
-              nil)))))
+  
+  ;; Render all loaded chunks
+  (maphash (lambda (key chunk)
+             (declare (ignore key))
+             (render-chunk chunk player))
+           *minecraft-world*)
+  
+  ;; Swap buffers
+  (sdl:update-display))

@@ -1,38 +1,59 @@
 (in-package :minecraft-3d)
 
-(defparameter *window* nil)
-(defparameter *running* t)
-(defparameter *width* 1280)
-(defparameter *height* 720)
+;; ====== WINDOW STATE ======
+(defparameter *window-width* 1280)
+(defparameter *window-height* 720)
+(defparameter *window-open* nil)
 
 (defun initialize-window ()
-  "Initialize SDL and OpenGL"
-  ;; Initialize SDL video subsystem
-  (sdl:init-sdl :video t)
+  "Initialize SDL and OpenGL context"
+  (sdl:init-sdl)
   
-  ;; Load OpenGL core
-  (load-lisp-opengl-core)
+  ;; Create window with lispbuilder-sdl
+  (setf *window-open* 
+        (sdl:create-video-surface
+         *window-width*
+         *window-height*
+         :flags '(sdl:sdl-opengl)))
   
-  ;; Setup viewport and clear color
-  (viewport 0 0 *width* *height*)
-  (clear-color 0.53 0.81 0.92 1.0))  ;; Sky blue
+  ;; Setup OpenGL
+  (gl:clear-color 0.5 0.7 1.0 1.0) ;; Sky blue
+  
+  ;; Perspective setup
+  (gl:matrix-mode :projection)
+  (gl:load-identity)
+  (glu:perspective 70.0 (/ *window-width* *window-height*) 0.1 500.0)
+  (gl:matrix-mode :modelview)
+  (gl:load-identity)
+  
+  ;; Enable depth testing
+  (gl:enable :depth-test)
+  (gl:depth-func :lequal)
+  
+  ;; Enable face culling
+  (gl:enable :cull-face)
+  (gl:cull-face :back))
 
 (defun shutdown-window ()
-  "Clean up SDL resources"
-  (sdl:quit-sdl))
+  "Clean up SDL and OpenGL"
+  (when *window-open*
+    (sdl:quit)))
 
-(defun swap-buffers ()
-  "Swap front and back buffers"
+(defun setup-camera (player)
+  "Set up camera position and orientation"
+  (gl:load-identity)
+  
+  ;; Rotate by pitch (up/down)
+  (gl:rotate (- (game-player-rot-x player)) 1.0 0.0 0.0)
+  
+  ;; Rotate by yaw (left/right)
+  (gl:rotate (- (game-player-rot-y player)) 0.0 1.0 0.0)
+  
+  ;; Translate by player position (negative because we move world, not camera)
+  (gl:translate (- (game-player-x player))
+                (- (game-player-y player))
+                (- (game-player-z player))))
+
+(defun update-display ()
+  "Update the display"
   (sdl:update-display))
-
-(defun handle-events (player)
-  "Process SDL events"
-  (sdl:with-events ()
-    (:quit-event () 
-      (setf *running* nil)
-      nil)
-    (:key-down-event (:keysym keysym)
-      (when (eq (sdl:scancode keysym) :sdl-scancode-escape)
-        (setf *running* nil)))
-    (t () t))
-  *running*)

@@ -1,77 +1,70 @@
 (in-package :minecraft-3d)
 
+;; ====== COORDINATE CONVERSION ======
+(defun world->local (world-coord chunk-size)
+  "Convert world coordinate to local chunk coordinate"
+  (mod world-coord chunk-size))
+
+(defun world->chunk (world-coord chunk-size)
+  "Convert world coordinate to chunk index"
+  (floor world-coord chunk-size))
+
+;; ====== BLOCK INTERACTION ======
 (defun break-block (x y z)
-  "Remove a block at world coordinates"
-  (when (and (>= y 0) (< y *chunk-height*))
-    (multiple-value-bind (cx cy cz)
-        (world-coords-to-chunk-coords x y z)
-      (let ((chunk (get-chunk cx cy cz)))
-        (when chunk
-          (let ((local-x (world->local x *chunk-size-x*))
-                (local-y (world->local y *chunk-size-y*))
-                (local-z (world->local z *chunk-size-z*)))
-            (setf (aref (chunk-blocks chunk) local-x local-y local-z) 0) ;; 0 = air
-            (setf (chunk-needs-geometry-update chunk) t)))))))
+  "Remove block at world coordinates"
+  (let ((chunk-x (world->chunk x *chunk-size*))
+        (chunk-z (world->chunk z *chunk-size*))
+        (local-x (world->local x *chunk-size*))
+        (local-y y)
+        (local-z (world->local z *chunk-size*)))
+    (let ((chunk-key (cons chunk-x chunk-z)))
+      (when (gethash chunk-key *minecraft-world*)
+        (let ((chunk (gethash chunk-key *minecraft-world*)))
+          (when (and (>= local-y 0) (< local-y *chunk-height*)
+                     (>= local-x 0) (< local-x *chunk-size*)
+                     (>= local-z 0) (< local-z *chunk-size*))
+            (setf (aref (chunk-blocks chunk) local-x local-y local-z) 0)))))))
 
-(defun place-block (x y z block-type)
-  "Place a block at world coordinates with validation"
-  (when (and (>= y 0) (< y *chunk-height*))
-    ;; Don't place on existing blocks
-    (when (zerop (get-block x y z))
-      ;; Check if reachable (within 8 blocks)
-      (when (< (raycast-distance-to-position x y z) 8.0)
-        (multiple-value-bind (cx cy cz)
-            (world-coords-to-chunk-coords x y z)
-          ;; Ensure chunk exists
-          (let ((chunk (get-chunk cx cy cz)))
-            (when chunk
-              (let ((local-x (world->local x *chunk-size-x*))
-                    (local-y (world->local y *chunk-size-y*))
-                    (local-z (world->local z *chunk-size-z*)))
-                (setf (aref (chunk-blocks chunk) local-x local-y local-z) 
-                      (if (symbolp block-type)
-                          (gethash block-type *block-id-map*)
-                          block-type))
-                (setf (chunk-needs-geometry-update chunk) t)))))))))
+(defun place-block (x y z block-id)
+  "Place block at world coordinates"
+  (let ((chunk-x (world->chunk x *chunk-size*))
+        (chunk-z (world->chunk z *chunk-size*))
+        (local-x (world->local x *chunk-size*))
+        (local-y y)
+        (local-z (world->local z *chunk-size*)))
+    (let ((chunk-key (cons chunk-x chunk-z)))
+      ;; Generate chunk if it doesn't exist
+      (unless (gethash chunk-key *minecraft-world*)
+        (generate-chunk chunk-x chunk-z))
+      (let ((chunk (gethash chunk-key *minecraft-world*)))
+        (when (and (>= local-y 0) (< local-y *chunk-height*)
+                   (>= local-x 0) (< local-x *chunk-size*)
+                   (>= local-z 0) (< local-z *chunk-size*))
+          (setf (aref (chunk-blocks chunk) local-x local-y local-z) block-id))))))
 
-(defun can-occupy-space-p (x y z)
-  "Check if a 1x1.8x1 player-sized bounding box is free of blocks"
-  ;; Check a cylinder-like shape around the player
-  (let ((player-width 0.3)
-        (player-height 1.7))
-    (and 
-      ;; Feet and lower body
-      (zerop (get-block (floor (+ x player-width)) (floor y) (floor z)))
-      (zerop (get-block (floor (- x player-width)) (floor y) (floor z)))
-      (zerop (get-block (floor x) (floor y) (floor (+ z player-width))))
-      (zerop (get-block (floor x) (floor y) (floor (- z player-width))))
-      
-      ;; Head
-      (zerop (get-block (floor (+ x player-width)) (floor (+ y player-height)) (floor z)))
-      (zerop (get-block (floor (- x player-width)) (floor (+ y player-height)) (floor z)))
-      (zerop (get-block (floor x) (floor (+ y player-height)) (floor (+ z player-width))))
-      (zerop (get-block (floor x) (floor (+ y player-height)) (floor (- z player-width)))))))
-
-(defun player-on-ground-p (player)
-  "Check if player is standing on a solid block"
-  (let ((x (game-player-x player))
-        (y (game-player-y player))
-        (z (game-player-z player))
-        (ground-distance 0.1))
-    (not (zerop (get-block (floor x) (floor (- y ground-distance)) (floor z))))))
-
-(defun apply-gravity (player delta-time)
-  "Apply gravity to the player"
-  (let ((gravity 9.8)
-        (terminal-velocity 60.0))
-    ;; Only apply if not on ground
-    (unless (player-on-ground-p player)
-      (let ((new-y (- (game-player-y player) (* gravity delta-time))))
-        (when (can-occupy-space-p (game-player-x player) new-y (game-player-z player))
-          (setf (game-player-y player) new-y))))))
-
-(defun raycast-distance-to-position (x y z)
-  "Return distance from player to world coordinates (simple Euclidean)"
-  ;; This is a placeholder - ideally should use actual player position
-  ;; For now return a fixed safe distance
-  0.0)
+(defun raycast-from-player (player max-distance)
+  "Cast ray from player and return first block hit"
+  (let ((pitch (game-player-rot-x player))
+        (yaw (game-player-rot-y player))
+        (px (game-player-x player))
+        (py (game-player-y player))
+        (pz (game-player-z player)))
+    ;; Direction vector from spherical coordinates
+    (let ((cos-pitch (cos pitch))
+          (sin-pitch (sin pitch))
+          (cos-yaw (cos yaw))
+          (sin-yaw (sin yaw)))
+      (let ((dx (* cos-pitch sin-yaw))
+            (dy (- sin-pitch))
+            (dz (* cos-pitch cos-yaw)))
+        ;; Step along ray
+        (let ((steps (floor (* max-distance 2))))
+          (dotimes (i steps)
+            (let ((t-dist (/ i 2.0)))
+              (let ((x (+ px (* t-dist dx)))
+                    (y (+ py (* t-dist dy)))
+                    (z (+ pz (* t-dist dz))))
+                (when (> (or (get-block (floor x) (floor y) (floor z)) 0) 0)
+                  ;; Hit a block, return position
+                  (return-from raycast-from-player
+                    (values (floor x) (floor y) (floor z) t-dist)))))))))))
