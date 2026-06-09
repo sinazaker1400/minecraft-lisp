@@ -3,41 +3,52 @@
 ;; ====== WINDOW STATE ======
 (defparameter *window-width* 1280)
 (defparameter *window-height* 720)
-(defparameter *window-open* nil)
+(defparameter *window* nil)
 
 (defun initialize-window ()
   "Initialize SDL and OpenGL context"
-  (sdl:init-sdl)
-  
-  ;; Create window with lispbuilder-sdl
-  (setf *window-open* 
-        (sdl:create-video-surface
-         *window-width*
-         *window-height*
-         :flags '(sdl:sdl-opengl)))
-  
-  ;; Setup OpenGL
-  (gl:clear-color 0.5 0.7 1.0 1.0) ;; Sky blue
-  
-  ;; Perspective setup
-  (gl:matrix-mode :projection)
-  (gl:load-identity)
-  (glu:perspective 70.0 (/ *window-width* *window-height*) 0.1 500.0)
-  (gl:matrix-mode :modelview)
-  (gl:load-identity)
-  
-  ;; Enable depth testing
-  (gl:enable :depth-test)
-  (gl:depth-func :lequal)
-  
-  ;; Enable face culling
-  (gl:enable :cull-face)
-  (gl:cull-face :back))
+  ;; Initialize SDL with video support
+  (sdl:with-init ()
+    ;; Create window - lispbuilder-sdl uses different syntax
+    (setf *window*
+          (sdl:make-surface :width *window-width*
+                            :height *window-height*))
+    
+    ;; Setup OpenGL
+    (gl:clear-color 0.5 0.7 1.0 1.0) ;; Sky blue
+    
+    ;; Perspective setup using frustum (manual perspective)
+    (gl:matrix-mode :projection)
+    (gl:load-identity)
+    
+    ;; Calculate frustum parameters for 70 degree FOV
+    (let* ((fov 70.0)
+           (aspect (/ *window-width* *window-height*))
+           (near 0.1)
+           (far 500.0)
+           (f (/ 1.0 (tan (/ fov 2.0)))))
+      (gl:frustum (- (/ near (* f aspect)))
+                  (/ near (* f aspect))
+                  (- (/ near f))
+                  (/ near f)
+                  near
+                  far))
+    
+    (gl:matrix-mode :modelview)
+    (gl:load-identity)
+    
+    ;; Enable depth testing
+    (gl:enable :depth-test)
+    (gl:depth-func :lequal)
+    
+    ;; Enable face culling
+    (gl:enable :cull-face)
+    (gl:cull-face :back)))
 
 (defun shutdown-window ()
   "Clean up SDL and OpenGL"
-  (when *window-open*
-    (sdl:quit)))
+  ;; lispbuilder-sdl handles cleanup with with-init macro
+  nil)
 
 (defun setup-camera (player)
   "Set up camera position and orientation"
@@ -56,4 +67,6 @@
 
 (defun update-display ()
   "Update the display"
-  (sdl:update-display))
+  (gl:flush)
+  ;; lispbuilder-sdl uses sdl:update-display or similar
+  (sdl:update-surface *window*))
