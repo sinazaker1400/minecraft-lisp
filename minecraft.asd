@@ -1,7 +1,7 @@
 (asdf:defsystem :minecraft
   :name "minecraft-lisp"
   :version "0.1.0"
-  :description "A simple Minecraft-like 3D voxel engine in Common Lisp"
+  :description "A Minecraft-like 3D voxel engine in Common Lisp"
   :author "Sina Zaker"
   :license "MIT"
   :depends-on (:cl-opengl :lispbuilder-sdl :alexandria :cffi)

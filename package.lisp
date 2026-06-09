@@ -1,14 +1,11 @@
 (defpackage :minecraft-3d
-  (:use :common-lisp :cl-opengl :cffi)
+  (:use :common-lisp)
   (:export
-   ;; Main functions
+   ;; Main
    #:run-game
-   
-   ;; Game state
-   #:*window*
    #:*running*
    
-   ;; Player
+   ;; Game state
    #:game-player
    #:make-game-player
    #:game-player-x
@@ -18,23 +15,26 @@
    #:game-player-rot-y
    
    ;; World
+   #:*minecraft-world*
    #:get-block
    #:set-block
    #:break-block
    #:place-block
    #:get-chunk
    
-   ;; Input
+   ;; Input/Time
    #:handle-input
-   #:update-mouse-look
    #:get-delta-time
+   #:update-mouse-look
    #:perform-raycast
+   #:*move-speed*
+   #:*mouse-sensitivity*
    
    ;; Rendering
    #:render-scene
    
-   ;; OpenGL setup
+   ;; OpenGL
    #:initialize-window
-   #:shutdown-window
-   #:swap-buffers
-   #:handle-events))
+   #:shutdown-window))
+
+(in-package :minecraft-3d)

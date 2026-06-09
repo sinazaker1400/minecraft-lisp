@@ -1,41 +1,87 @@
 (in-package :minecraft-3d)
 
-;; Initialize random state with seed
-(defparameter *world-seed* 12345)
-(defparameter *random-state* (make-random-state))
+(defun seeded-random (x y seed)
+  "Deterministic random number from coordinates and seed"
+  (let ((n (sxhash (list x y seed))))
+    (/ (mod (abs n) 10000) 10000.0)))
 
-(defun initialize-randomness (seed)
-  "Initialize the random state with a seed for reproducible generation"
-  (setf *world-seed* seed)
-  (setf *random-state* (make-random-state t))
-  ;; Set the state using the seed
-  (dotimes (_ seed)
-    (random 65536 *random-state*)))
+(defun perlin-lerp (a b t-val)
+  "Linear interpolation"
+  (+ a (* (- b a) t-val)))
 
-(defun seeded-random (seed)
-  "Deterministic pseudo-random number based on seed"
-  (let ((x (sxhash seed)))
-    (/ (mod x 10000) 10000.0)))
+(defun perlin-smooth (t-val)
+  "Smoothstep interpolation"
+  (* t-val t-val (- 3 (* 2 t-val))))
 
-(defun perlin-like-noise (x z scale)
-  "Simple Perlin-like noise using sxhash for deterministic randomness"
-  (let ((n1 (seeded-random (list (floor (/ x scale)) (floor (/ z scale)) *world-seed*)))
-        (n2 (seeded-random (list (floor (/ (+ x 1) scale)) (floor (/ z scale)) *world-seed*)))
-        (n3 (seeded-random (list (floor (/ x scale)) (floor (/ (+ z 1) scale)) *world-seed*)))
-        (n4 (seeded-random (list (floor (/ (+ x 1) scale)) (floor (/ (+ z 1) scale)) *world-seed*)))
-        (local-x (- (/ x scale) (floor (/ x scale))))
-        (local-z (- (/ z scale) (floor (/ z scale)))))
-    ;; Smooth interpolation
-    (let ((u (* local-x local-x (- 3 (* 2 local-x))))
-          (v (* local-z local-z (- 3 (* 2 local-z)))))
-      (+ (* n1 (- 1 u) (- 1 v))
-         (* n2 u (- 1 v))
-         (* n3 (- 1 u) v)
-         (* n4 u v)))))
+(defun perlin-noise (x z scale octaves)
+  "Multi-octave Perlin-like noise"
+  (let ((result 0.0)
+        (amplitude 1.0)
+        (frequency 1.0)
+        (max-value 0.0))
+    (dotimes (i octaves)
+      (let* ((sample-x (* x frequency scale))
+             (sample-z (* z frequency scale))
+             (grid-x (floor sample-x))
+             (grid-z (floor sample-z))
+             (local-x (- sample-x grid-x))
+             (local-z (- sample-z grid-z))
+             (smooth-x (perlin-smooth local-x))
+             (smooth-z (perlin-smooth local-z))
+             (v00 (seeded-random grid-x grid-z (+ *world-seed* i)))
+             (v10 (seeded-random (+ grid-x 1) grid-z (+ *world-seed* i)))
+             (v01 (seeded-random grid-x (+ grid-z 1) (+ *world-seed* i)))
+             (v11 (seeded-random (+ grid-x 1) (+ grid-z 1) (+ *world-seed* i)))
+             (v0 (perlin-lerp v00 v10 smooth-x))
+             (v1 (perlin-lerp v01 v11 smooth-x))
+             (value (perlin-lerp v0 v1 smooth-z)))
+        (incf result (* value amplitude))
+        (incf max-value amplitude)
+        (setf amplitude (* amplitude 0.5))
+        (setf frequency (* frequency 2.0))))
+    (/ result max-value)))
 
-(defun calculate-height (x z)
-  "Calculate terrain height at world coordinates with improved noise"
-  (let ((base-height 64)
-        ;; Large hills (scale 0.05 = 400 blocks wide)
-        (large-hills (* 15 (perlin-like-noise x z 0.05)))
-        ;; Medium features (scale 0.2 =
+(defun generate-chunk-terrain (chunk)
+  "Generate terrain for a chunk using noise"
+  (let ((blocks (chunk-blocks chunk))
+        (chunk-x (chunk-x chunk))
+        (chunk-z (chunk-z chunk)))
+    (dotimes (lx *chunk-size*)
+      (dotimes (lz *chunk-size*)
+        (let* ((world-x (+ (* chunk-x *chunk-size*) lx))
+               (world-z (+ (* chunk-z *chunk-size*) lz))
+               (height-noise (perlin-noise (/ world-x 50.0)
+                                           (/ world-z 50.0)
+                                           1.0
+                                           4))
+               (height (+ 32 (* 32 height-noise)))
+               (height-int (floor height)))
+          
+          (dotimes (y *chunk-height*)
+            (let ((block-type 0))
+              (cond
+                ((< y (- height-int 5))
+                 (setf block-type 3))
+                ((< y height-int)
+                 (setf block-type 2))
+                ((= y height-int)
+                 (setf block-type 1))
+                ((and (< y 32) (> y (- height-int 10)))
+                 (setf block-type 5)))
+              
+              (setf (aref blocks lx y lz) block-type))))))))
+
+(defun ensure-chunk-generated (chunk)
+  "Generate chunk if not already generated"
+  (when (chunk-needs-update chunk)
+    (generate-chunk-terrain chunk)
+    (setf (chunk-needs-update chunk) nil)))
+
+(defun preload-world (player radius)
+  "Generate chunks around player"
+  (let ((px (floor (game-player-x player) *chunk-size*))
+        (pz (floor (game-player-z player) *chunk-size*)))
+    (loop for dx from (- radius) to radius do
+      (loop for dz from (- radius) to radius do
+        (let ((chunk (get-chunk (+ px dx) 0 (+ pz dz))))
+          (ensure-chunk-generated chunk))))))
