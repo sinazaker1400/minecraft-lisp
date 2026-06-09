@@ -1,4 +1,17 @@
-(in-package :minecraft)
+(in-package :minecraft-3d)
+
+;; Global timing state
+(defparameter *last-frame-time* 0.0)
+
+(defun get-delta-time ()
+  "Get elapsed time since last frame in seconds"
+  (let ((current-time (/ (get-internal-real-time) 
+                         (float internal-time-units-per-second))))
+    (if (zerop *last-frame-time*)
+        (setf *last-frame-time* current-time)
+        (let ((dt (- current-time *last-frame-time*)))
+          (setf *last-frame-time* current-time)
+          (max 0.001 (min 0.05 dt))))))  ;; Clamp between 1ms-50ms
 
 ;; Mouse tracking state
 (defparameter *mouse-last-x* 0)
@@ -9,36 +22,48 @@
   "Handle keyboard input with delta-time based movement"
   (let ((speed (* *move-speed* delta-time))
         (yaw (game-player-rot-y player))
-        (cos-yaw (cos yaw))
-        (sin-yaw (sin yaw)))
+        (cos-yaw (cos (game-player-rot-y player)))
+        (sin-yaw (sin (game-player-rot-y player))))
     
     ;; Forward movement (W key)
     (when (sdl:key-down-p :sdl-key-w)
-      (incf (game-player-x player) (* speed cos-yaw))
-      (incf (game-player-z player) (* speed sin-yaw)))
+      (let ((new-x (+ (game-player-x player) (* speed cos-yaw)))
+            (new-z (+ (game-player-z player) (* speed sin-yaw))))
+        (when (can-occupy-space-p new-x (game-player-y player) new-z)
+          (setf (game-player-x player) new-x
+                (game-player-z player) new-z))))
     
     ;; Backward movement (S key)
     (when (sdl:key-down-p :sdl-key-s)
-      (decf (game-player-x player) (* speed cos-yaw))
-      (decf (game-player-z player) (* speed sin-yaw)))
+      (let ((new-x (- (game-player-x player) (* speed cos-yaw)))
+            (new-z (- (game-player-z player) (* speed sin-yaw))))
+        (when (can-occupy-space-p new-x (game-player-y player) new-z)
+          (setf (game-player-x player) new-x
+                (game-player-z player) new-z))))
     
     ;; Strafe left (A key) - perpendicular to forward direction
     (when (sdl:key-down-p :sdl-key-a)
       (let ((strafe-angle (+ yaw *pi-half*)))
-        (incf (game-player-x player) (* speed (cos strafe-angle)))
-        (incf (game-player-z player) (* speed (sin strafe-angle)))))
+        (let ((new-x (+ (game-player-x player) (* speed (cos strafe-angle))))
+              (new-z (+ (game-player-z player) (* speed (sin strafe-angle)))))
+          (when (can-occupy-space-p new-x (game-player-y player) new-z)
+            (setf (game-player-x player) new-x
+                  (game-player-z player) new-z)))))
     
     ;; Strafe right (D key)
     (when (sdl:key-down-p :sdl-key-d)
       (let ((strafe-angle (- yaw *pi-half*)))
-        (incf (game-player-x player) (* speed (cos strafe-angle)))
-        (incf (game-player-z player) (* speed (sin strafe-angle)))))
+        (let ((new-x (+ (game-player-x player) (* speed (cos strafe-angle))))
+              (new-z (+ (game-player-z player) (* speed (sin strafe-angle)))))
+          (when (can-occupy-space-p new-x (game-player-y player) new-z)
+            (setf (game-player-x player) new-x
+                  (game-player-z player) new-z)))))
     
     ;; Up movement (Space key)
     (when (sdl:key-down-p :sdl-key-space)
       (incf (game-player-y player) speed))
     
-    ;; Down movement (Ctrl key)
+    ;; Down movement (LCtrl key)
     (when (sdl:key-down-p :sdl-key-lctrl)
       (decf (game-player-y player) speed))))
 
@@ -53,7 +78,7 @@
     
     ;; Clamp pitch to prevent flipping
     (setf (game-player-rot-x player)
-          (max (- *max-pitch*) 
+          (max (- *max-pitch*)
                (min *max-pitch* (game-player-rot-x player))))))
 
 (defun update-mouse-look (player)
@@ -72,26 +97,8 @@
           (setf *mouse-last-x* x)
           (setf *mouse-last-y* y)))))
 
-(defun handle-mouse-clicks (player)
-  "Handle block breaking and placing"
-  (let ((buttons (sdl:get-mouse-state)))
-    ;; Left click: break block
-    (when (sdl:mouse-button-p :button-left buttons)
-      (let ((target (raycast-to-block player)))
-        (when target
-          (destructuring-bind (x y z) target
-            (break-block x y z)))))
-    
-    ;; Right click: place block
-    (when (sdl:mouse-button-p :button-right buttons)
-      (let ((target (raycast-to-block player t)))  ;; t = get adjacent block
-        (when target
-          (destructuring-bind (x y z) target
-            (place-block x y z 1)))))))  ;; 1 = grass block
-
-(defun raycast-to-block (player &optional (adjacent nil))
-  "Cast a ray from player camera and find intersected block.
-   If adjacent is T, returns the block adjacent to the intersection (for placement)."
+(defun perform-raycast (player)
+  "Cast a ray from player camera and find intersected block with metadata"
   (let ((max-distance 8.0)
         (step-size 0.1)
         (x (game-player-x player))
@@ -105,9 +112,8 @@
           (sin-pitch (sin pitch))
           (cos-yaw (cos yaw))
           (sin-yaw (sin yaw)))
-      
       (let ((dx (* cos-pitch cos-yaw))
-            (dy (* sin-pitch))
+            (dy (sin pitch))
             (dz (* cos-pitch sin-yaw)))
         
         ;; Step along the ray
@@ -115,13 +121,44 @@
               for ray-x = (+ x (* distance dx))
               for ray-y = (+ y (* distance dy))
               for ray-z = (+ z (* distance dz))
-              for block-type = (get-block (floor ray-x) (floor ray-y) (floor ray-z))
+              for block-x = (floor ray-x)
+              for block-y = (floor ray-y)
+              for block-z = (floor ray-z)
+              for block-type = (get-block block-x block-y block-z)
               when (and block-type (> block-type 0))
-                do (if adjacent
-                       ;; Return the block we came from (for placement)
-                       (let ((prev-x (+ x (* (- distance step-size) dx)))
-                             (prev-y (+ y (* (- distance step-size) dy)))
-                             (prev-z (+ z (* (- distance step-size) dz))))
-                         (return (list (floor prev-x) (floor prev-y) (floor prev-z))))
-                       ;; Return the block we hit (for breaking)
-                       (return (list (floor ray-x) (floor ray-y) (floor ray-z)))))))))
+                do (return (make-raycast-result
+                            :hit-p t
+                            :block-x block-x
+                            :block-y block-y
+                            :block-z block-z
+                            :block-type block-type
+                            :distance distance
+                            :face (determine-face-hit ray-x ray-y ray-z
+                                                      block-x block-y block-z)))
+              finally (return (make-raycast-result :hit-p nil))))))
+
+;; Raycast result structure
+(defstruct raycast-result
+  (hit-p nil)
+  (block-x 0)
+  (block-y 0)
+  (block-z 0)
+  (block-type 0)
+  (distance 0.0)
+  (face :front))  ;; :top, :bottom, :left, :right, :front, :back
+
+(defun determine-face-hit (ray-x ray-y ray-z block-x block-y block-z)
+  "Determine which face of the block was hit by the ray"
+  (let ((fx (- ray-x block-x))
+        (fy (- ray-y block-y))
+        (fz (- ray-z block-z)))
+    (let ((abs-x (abs fx))
+          (abs-y (abs fy))
+          (abs-z (abs fz)))
+      (cond
+        ((and (>= abs-x abs-y) (>= abs-x abs-z))
+         (if (>= fx 0.5) :right :left))
+        ((and (>= abs-y abs-x) (>= abs-y abs-z))
+         (if (>= fy 0.5) :top :bottom))
+        (t
+         (if (>= fz 0.5) :front :back))))))

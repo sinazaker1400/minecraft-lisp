@@ -1,18 +1,17 @@
-(asdf:defsystem #:minecraft
-  :description "A Minecraft-like 3D game in Common Lisp"
+(asdf:defsystem :minecraft
+  :name "minecraft-lisp"
+  :version "0.1.0"
+  :description "A simple Minecraft-like 3D voxel engine in Common Lisp"
   :author "Sina Zaker"
   :license "MIT"
-  :depends-on (#:lispbuilder-sdl
-               #:lispbuilder-sdl-gfx
-               #:cl-opengl
-               #:cl-glu
-               #:cl-glop)
+  :depends-on (:cl-opengl :lispbuilder-sdl :alexandria :cffi)
   :serial t
-  :components ((:file "package")
-               (:file "defs")
-               (:file "opengl-setup")
-               (:file "world-generation")
-               (:file "input")
-               (:file "world-interaction")
-               (:file "rendering")
-               (:file "main")))
+  :components
+  ((:file "package")
+   (:file "defs")
+   (:file "world-generation")
+   (:file "input")
+   (:file "world-interaction")
+   (:file "opengl-setup")
+   (:file "rendering")
+   (:file "main")))

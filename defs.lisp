@@ -1,4 +1,4 @@
-(in-package :minecraft)
+(in-package :minecraft-3d)
 
 ;; Game state structure
 (defstruct game-player

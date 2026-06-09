@@ -1,37 +1,38 @@
-(in-package #:minecraft-3d)
+(in-package :minecraft-3d)
 
-(defun init-opengl (width height)
+(defparameter *window* nil)
+(defparameter *running* t)
+(defparameter *width* 1280)
+(defparameter *height* 720)
 
-  (declare (ignore width height))
+(defun initialize-window ()
+  "Initialize SDL and OpenGL"
+  ;; Initialize SDL video subsystem
+  (sdl:init-sdl :video t)
+  
+  ;; Load OpenGL core
+  (load-lisp-opengl-core)
+  
+  ;; Setup viewport and clear color
+  (viewport 0 0 *width* *height*)
+  (clear-color 0.53 0.81 0.92 1.0))  ;; Sky blue
 
-  (gl:enable :depth-test)
-  (gl:enable :cull-face)
+(defun shutdown-window ()
+  "Clean up SDL resources"
+  (sdl:quit-sdl))
 
-  (gl:cull-face :back)
+(defun swap-buffers ()
+  "Swap front and back buffers"
+  (sdl:update-display))
 
-  (gl:shade-model :smooth)
-
-  (gl:enable :color-material)
-
-  (gl:clear-color
-   0.5
-   0.7
-   1.0
-   1.0))
-
-(defun setup-opengl (width height)
-
-  (gl:viewport 0 0 width height)
-
-  (gl:matrix-mode :projection)
-  (gl:load-identity)
-
-  (glu:perspective
-   70.0
-   (/ (float width)
-      (float height))
-   0.1
-   500.0)
-
-  (gl:matrix-mode :modelview)
-  (gl:load-identity))
+(defun handle-events (player)
+  "Process SDL events"
+  (sdl:with-events ()
+    (:quit-event () 
+      (setf *running* nil)
+      nil)
+    (:key-down-event (:keysym keysym)
+      (when (eq (sdl:scancode keysym) :sdl-scancode-escape)
+        (setf *running* nil)))
+    (t () t))
+  *running*)
