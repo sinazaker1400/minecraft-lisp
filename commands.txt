@@ -40,7 +40,11 @@ sbcl \
   --quit
 
 to push commit:
-git -c http.proxy= -c https.proxy= push -u origin main
+git -c http.proxy= -c https.proxy= push -u origin main 
+
+or :
+
+git push -u origin main
 
 to zip the projects :
 tar czf minecraft-src.tar.gz *.lisp *.asd

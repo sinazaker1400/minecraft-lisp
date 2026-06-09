@@ -1,79 +1,57 @@
-(in-package #:minecraft-3d)
+(in-package :minecraft)
 
 (defun break-block (x y z)
-
-  (multiple-value-bind (cx cy cz)
+  "Remove a block at world coordinates"
+  (when (and (>= y 0) (< y *chunk-height*))
+    (multiple-value-bind (cx cy cz)
       (world-coords-to-chunk-coords x y z)
+      (let ((chunk (gethash (list cx cy cz) *minecraft-world*)))
+        (when chunk
+          (let ((local-x (world->local x *chunk-size*))
+                (local-y (world->local y *chunk-size*))
+                (local-z (world->local z *chunk-size*)))
+            (setf (aref (chunk-blocks chunk) local-x local-y local-z) 0)  ;; 0 = air
+            (setf (chunk-needs-geometry-update chunk) t)))))))
 
-    (let ((chunk (get-chunk cx cy cz)))
+(defun place-block (x y z block-type)
+  "Place a block at world coordinates with validation"
+  (when (and (>= y 0) (< y *chunk-height*))
+    ;; Don't place on existing blocks
+    (when (zerop (get-block x y z))
+      (multiple-value-bind (cx cy cz)
+        (world-coords-to-chunk-coords x y z)
+        ;; Ensure chunk exists
+        (unless (gethash (list cx cy cz) *minecraft-world*)
+          (generate-chunk cx cy cz))
+        
+        (let ((chunk (gethash (list cx cy cz) *minecraft-world*)))
+          (when chunk
+            (let ((local-x (world->local x *chunk-size*))
+                  (local-y (world->local y *chunk-size*))
+                  (local-z (world->local z *chunk-size*)))
+              (setf (aref (chunk-blocks chunk) local-x local-y local-z) block-type)
+              (setf (chunk-needs-geometry-update chunk) t))))))))
 
-      (setf
-       (aref
-        (chunk-blocks chunk)
-        (mod x 16)
-        (mod y 16)
-        (mod z 16))
-       nil)
+(defun can-occupy-space-p (x y z)
+  "Check if a 1x1.8x1 player-sized bounding box is free of blocks"
+  ;; Check bottom and top of player
+  (and (zerop (get-block (floor x) (floor y) (floor z)))
+       (zerop (get-block (floor x) (floor (+ y 1.7)) (floor z)))))
 
-      (setf (chunk-needs-geometry-update chunk)
-            t))))
+(defun apply-collision-detection (player)
+  "Prevent player from walking through blocks"
+  ;; This should be called after movement input
+  ;; For now, just clamp to valid positions
+  (let ((x (game-player-x player))
+        (y (game-player-y player))
+        (z (game-player-z player)))
+    (unless (can-occupy-space-p x y z)
+      ;; Revert to last valid position
+      ;; This is a simple solution; better approach uses separate x/y/z collision checks
+      nil)))
 
-(defun place-block (x y z type)
-
-  (multiple-value-bind (cx cy cz)
-      (world-coords-to-chunk-coords x y z)
-
-    (let ((chunk (get-chunk cx cy cz)))
-
-      (setf
-       (aref
-        (chunk-blocks chunk)
-        (mod x 16)
-        (mod y 16)
-        (mod z 16))
-       type)
-
-      (setf (chunk-needs-geometry-update chunk)
-            t))))
-
-(defun raycast-block (sx sy sz dx dy dz)
-
-  (loop
-    for distance from 0.0 to +max-ray-distance+ by 0.05
-
-    for x = (floor (+ sx (* dx distance)))
-    for y = (floor (+ sy (* dy distance)))
-    for z = (floor (+ sz (* dz distance)))
-
-    when (get-block x y z)
-      do
-        (return
-          (make-raycast-result
-            :hit-p t
-            :block-x x
-            :block-y y
-            :block-z z
-            :hit-x (+ sx (* dx distance))
-            :hit-y (+ sy (* dy distance))
-            :hit-z (+ sz (* dz distance))))
-
-    finally
-      (return
-        (make-raycast-result :hit-p nil))))
-
-(defun perform-raycast (player)
-
-  (let* ((pitch (game-player-rot-x player))
-         (yaw   (game-player-rot-y player))
-
-         (cos-pitch (cos pitch))
-
-         (dx (* cos-pitch (cos yaw)))
-         (dy (sin pitch))
-         (dz (* cos-pitch (sin yaw))))
-
-    (raycast-block
-     (game-player-x player)
-     (game-player-y player)
-     (game-player-z player)
-     dx dy dz)))
+(defun player-on-ground-p (player)
+  "Check if player is standing on a solid block"
+  (let ((x (game-player-x player))
+        (y (game-player-y player))
+        (z (game-player-z player)))

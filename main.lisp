@@ -22,11 +22,7 @@
     (init-opengl *window-width* *window-height*)
     (setup-opengl *window-width* *window-height*)
 
-    (let ((player (make-game-player))
-          (prev-mouse-x (/ *window-width* 2))
-          (prev-mouse-y (/ *window-height* 2))
-          (window-center-x (/ *window-width* 2))
-          (window-center-y (/ *window-height* 2)))
+    (let ((player (make-game-player)))
       ;; Initial render
       (render-world player)
 
@@ -54,13 +50,19 @@
 
         ;; Mouse motion event for mouse look - extract x and y and calculate delta
         (:mouse-motion-event (:x mouse-x :y mouse-y)
-         ;; Calculate delta for mouse look
-         (let ((delta-x (- mouse-x prev-mouse-x))
-               (delta-y (- mouse-y prev-mouse-y)))
-           (handle-mouse-look player delta-x delta-y))
-         ;; Mouse confinement will be handled by OS window manager instead
-         (setf prev-mouse-x mouse-x)
-         (setf prev-mouse-y mouse-y))
+
+ (let* ((center-x (/ *window-width* 2))
+        (center-y (/ *window-height* 2))
+
+        (delta-x (- mouse-x center-x))
+        (delta-y (- mouse-y center-y)))
+
+   (handle-mouse-look player delta-x delta-y)
+
+   ;; Warp mouse back to center every frame
+   (sdl-cffi::sdl-warp-mouse
+    center-x
+    center-y)))
 
         ;; Mouse button down event for block interaction
         (:mouse-button-down-event (:button button :x mouse-x :y mouse-y)
@@ -103,4 +105,8 @@
                                            (raycast-result-block-z raycast-result)))
                (setf *targeted-block* nil)))
          (render-world player)
-         (sdl:update-display))))))
+         (sdl:update-display)
+         (format t "~&X=~,1f Y=~,1f Z=~,1f~%"
+        (game-player-x player)
+        (game-player-y player)
+        (game-player-z player)))))))
