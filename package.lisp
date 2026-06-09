@@ -1,40 +1,74 @@
 (defpackage :minecraft-3d
-  (:use :common-lisp)
+  (:use :cl)
+  (:import-from :cl-opengl
+                #:clear-color
+                #:enable
+                #:depth-func
+                #:cull-face
+                #:front-face
+                #:matrix-mode
+                #:load-identity
+                #:viewport
+                #:clear
+                #:begin
+                #:vertex
+                #:color
+                #:normal
+                #:end
+                #:translate
+                #:rotate
+                #:scale
+                #:push-matrix
+                #:pop-matrix
+                #:draw-arrays)
+  (:import-from :cl-glu
+                #:perspective)
   (:export
-   ;; Main
-   #:run-game
-   #:*running*
+   ;; Window management
+   #:initialize-window
+   #:cleanup-window
+   #:swap-buffers
+   #:set-viewport
+   #:setup-opengl
    
    ;; Game state
+   #:*game-player*
+   #:*world-seed*
+   #:*running*
+   #:*chunks*
+   #:*last-frame-time*
+   
+   ;; Player
    #:game-player
    #:make-game-player
-   #:game-player-x
-   #:game-player-y
-   #:game-player-z
-   #:game-player-rot-x
-   #:game-player-rot-y
+   #:player-pos
+   #:player-vel
+   #:player-yaw
+   #:player-pitch
    
    ;; World
-   #:*minecraft-world*
+   #:chunk
+   #:make-chunk
    #:get-block
    #:set-block
-   #:break-block
-   #:place-block
-   #:get-chunk
+   #:generate-world
+   #:get-or-create-chunk
+   #:preload-world
+   #:world->local
    
-   ;; Input/Time
-   #:handle-input
+   ;; Input
+   #:handle-events
+   #:update-player-input
    #:get-delta-time
-   #:update-mouse-look
-   #:perform-raycast
-   #:*move-speed*
-   #:*mouse-sensitivity*
    
    ;; Rendering
    #:render-scene
+   #:render-chunk
    
-   ;; OpenGL
-   #:initialize-window
-   #:shutdown-window))
-
-(in-package :minecraft-3d)
+   ;; Interaction
+   #:break-block
+   #:place-block
+   #:raycast-to-block
+   
+   ;; Main
+   #:start-game))

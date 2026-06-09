@@ -1,127 +1,74 @@
 (in-package :minecraft-3d)
 
-;; ====== TIMING ======
-(defparameter *last-frame-time* 0.0)
-(defparameter *frame-delta-time* 0.016) ;; Start with 60 FPS assumption
+(defvar *last-mouse-x* 0)
+(defvar *last-mouse-y* 0)
+(defvar *mouse-captured* t)
+
+(defun update-player-input (player)
+  "Update player movement based on keyboard and mouse input"
+  (let ((dt (/ (get-delta-time) 1000.0)))
+    ;; Get current keyboard state
+    (let ((keys (sdl2:get-keyboard-state)))
+      ;; Forward (W)
+      (when (aref keys (sdl2:scancode-value :scancode-w))
+        (let ((angle (player-yaw player)))
+          (incf (aref (player-pos player) 0) (* 5 dt (cos angle)))
+          (incf (aref (player-pos player) 2) (* 5 dt (sin angle)))))
+      
+      ;; Backward (S)
+      (when (aref keys (sdl2:scancode-value :scancode-s))
+        (let ((angle (player-yaw player)))
+          (decf (aref (player-pos player) 0) (* 5 dt (cos angle)))
+          (decf (aref (player-pos player) 2) (* 5 dt (sin angle)))))
+      
+      ;; Left Strafe (A)
+      (when (aref keys (sdl2:scancode-value :scancode-a))
+        (let ((angle (- (player-yaw player) (/ pi 2))))
+          (incf (aref (player-pos player) 0) (* 5 dt (cos angle)))
+          (incf (aref (player-pos player) 2) (* 5 dt (sin angle)))))
+      
+      ;; Right Strafe (D)
+      (when (aref keys (sdl2:scancode-value :scancode-d))
+        (let ((angle (+ (player-yaw player) (/ pi 2))))
+          (incf (aref (player-pos player) 0) (* 5 dt (cos angle)))
+          (incf (aref (player-pos player) 2) (* 5 dt (sin angle)))))
+      
+      ;; Jump (Space)
+      (when (aref keys (sdl2:scancode-value :scancode-space))
+        (when (zerop (aref (player-vel player) 1))
+          (setf (aref (player-vel player) 1) 8.0))))
+    
+    ;; Apply gravity
+    (decf (aref (player-vel player) 1) (* 9.81 dt))
+    (incf (aref (player-pos player) 1) (* (aref (player-vel player) 1) dt))
+    
+    ;; Simple ground collision
+    (when (<= (aref (player-pos player) 1) 0)
+      (setf (aref (player-pos player) 1) 0)
+      (setf (aref (player-vel player) 1) 0))))
+
+(defun handle-mouse-input (player)
+  "Update player camera based on mouse movement"
+  (multiple-value-bind (x y state)
+      (sdl2:mouse-state)
+    (let ((dx (- x *last-mouse-x*))
+          (dy (- y *last-mouse-y*)))
+      (setf *last-mouse-x* x)
+      (setf *last-mouse-y* y)
+      
+      ;; Update yaw (horizontal rotation)
+      (decf (player-yaw player) (* dx 0.005))
+      
+      ;; Update pitch (vertical rotation)
+      (incf (player-pitch player) (* dy 0.005))
+      
+      ;; Clamp pitch to prevent flipping
+      (setf (player-pitch player)
+            (max -1.57 (min 1.57 (player-pitch player)))))))
 
 (defun get-delta-time ()
-  "Get elapsed time since last frame in seconds"
-  (let ((current-time (/ (get-internal-real-time)
-                         (float internal-time-units-per-second))))
-    (if (zerop *last-frame-time*)
-        (setf *last-frame-time* current-time)
-        (let ((dt (- current-time *last-frame-time*)))
-          (setf *last-frame-time* current-time)
-          (setf *frame-delta-time* (max 0.001 (min 0.05 dt)))))))
-
-;; ====== MOUSE TRACKING ======
-(defparameter *mouse-x* 0)
-(defparameter *mouse-y* 0)
-(defparameter *mouse-initialized* nil)
-
-(defun update-mouse-look (player)
-  "Update camera rotation based on mouse movement"
-  ;; lispbuilder-sdl uses SDL:MOUSE-X and SDL:MOUSE-Y
-  (let ((x (sdl:mouse-x))
-        (y (sdl:mouse-y)))
-    (if (not *mouse-initialized*)
-        (progn
-          (setf *mouse-x* x)
-          (setf *mouse-y* y)
-          (setf *mouse-initialized* t))
-        (let ((delta-x (- x *mouse-x*))
-              (delta-y (- y *mouse-y*)))
-          ;; Update yaw (horizontal)
-          (incf (game-player-rot-y player)
-                (* delta-x *mouse-sensitivity*))
-          ;; Update pitch (vertical) with clamping
-          (incf (game-player-rot-x player)
-                (* delta-y *mouse-sensitivity*))
-          (setf (game-player-rot-x player)
-                (max (- *max-pitch*)
-                     (min *max-pitch*
-                           (game-player-rot-x player))))
-          (setf *mouse-x* x)
-          (setf *mouse-y* y)))))
-
-;; ====== COLLISION DETECTION ======
-(defun can-occupy-space-p (x y z)
-  "Check if player-sized space is free"
-  (let ((margin 0.3))
-    ;; Check 4 corners at feet level
-    (and (zerop (or (get-block (floor (+ x margin)) (floor y) (floor z)) 0))
-         (zerop (or (get-block (floor (- x margin)) (floor y) (floor z)) 0))
-         (zerop (or (get-block (floor x) (floor y) (floor (+ z margin))) 0))
-         (zerop (or (get-block (floor x) (floor y) (floor (- z margin))) 0))
-         ;; Check 4 corners at head level
-         (zerop (or (get-block (floor (+ x margin)) (floor (+ y 1.7)) (floor z)) 0))
-         (zerop (or (get-block (floor (- x margin)) (floor (+ y 1.7)) (floor z)) 0))
-         (zerop (or (get-block (floor x) (floor (+ y 1.7)) (floor (+ z margin))) 0))
-         (zerop (or (get-block (floor x) (floor (+ y 1.7)) (floor (- z margin))) 0)))))
-
-(defun player-on-ground-p (player)
-  "Check if player is standing on solid ground"
-  (not (zerop (or (get-block (floor (game-player-x player))
-                             (floor (- (game-player-y player) 0.1))
-                             (floor (game-player-z player))) 0))))
-
-(defun apply-gravity (player dt)
-  "Apply gravity and handle jumping"
-  (unless (player-on-ground-p player)
-    ;; Falling
-    (decf (game-player-vel-y player) (* *gravity* dt))
-    ;; Terminal velocity
-    (setf (game-player-vel-y player)
-          (max (game-player-vel-y player) -60.0)))
-  ;; Apply vertical velocity
-  (let ((new-y (+ (game-player-y player)
-                  (* (game-player-vel-y player) dt))))
-    (if (can-occupy-space-p (game-player-x player) new-y (game-player-z player))
-        (setf (game-player-y player) new-y)
-        ;; Hit something
-        (when (< (game-player-vel-y player) 0)
-          ;; Hit ground
-          (setf (game-player-vel-y player) 0.0)
-          ;; Convert floor result to float
-          (setf (game-player-y player) (float (floor new-y)))))))
-
-;; ====== KEYBOARD INPUT ======
-(defun handle-input (player dt)
-  "Handle keyboard movement with delta-time"
-  (let ((speed (* *move-speed* dt)))
-    (let ((yaw (game-player-rot-y player))
-          (cos-yaw (cos (game-player-rot-y player)))
-          (sin-yaw (sin (game-player-rot-y player))))
-      ;; Forward (W)
-      (when (sdl:key-pressed-p :w)
-        (let ((new-x (+ (game-player-x player) (* speed cos-yaw)))
-              (new-z (+ (game-player-z player) (* speed sin-yaw))))
-          (when (can-occupy-space-p new-x (game-player-y player) new-z)
-            (setf (game-player-x player) new-x)
-            (setf (game-player-z player) new-z))))
-      ;; Backward (S)
-      (when (sdl:key-pressed-p :s)
-        (let ((new-x (- (game-player-x player) (* speed cos-yaw)))
-              (new-z (- (game-player-z player) (* speed sin-yaw))))
-          (when (can-occupy-space-p new-x (game-player-y player) new-z)
-            (setf (game-player-x player) new-x)
-            (setf (game-player-z player) new-z))))
-      ;; Strafe left (A)
-      (when (sdl:key-pressed-p :a)
-        (let ((angle (+ yaw *pi-half*)))
-          (let ((new-x (+ (game-player-x player) (* speed (cos angle))))
-                (new-z (+ (game-player-z player) (* speed (sin angle)))))
-            (when (can-occupy-space-p new-x (game-player-y player) new-z)
-              (setf (game-player-x player) new-x)
-              (setf (game-player-z player) new-z)))))
-      ;; Strafe right (D)
-      (when (sdl:key-pressed-p :d)
-        (let ((angle (- yaw *pi-half*)))
-          (let ((new-x (+ (game-player-x player) (* speed (cos angle))))
-                (new-z (+ (game-player-z player) (* speed (sin angle)))))
-            (when (can-occupy-space-p new-x (game-player-y player) new-z)
-              (setf (game-player-x player) new-x)
-              (setf (game-player-z player) new-z)))))
-      ;; Jump (Space)
-      (when (and (sdl:key-pressed-p :space) (player-on-ground-p player))
-        (setf (game-player-vel-y player) 10.0)))))
+  "Get delta time in milliseconds since last frame"
+  (let ((current-time (sdl2:get-ticks)))
+    (prog1
+        (- current-time *last-frame-time*)
+      (setf *last-frame-time* current-time))))
