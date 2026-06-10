@@ -39,6 +39,12 @@ sbcl \
   --eval '(minecraft-3d:start-game)' \
   --quit
 
+or :
+
+rm -rf ~/.cache/common-lisp/sbcl-*/linux-x64-s/home/sina/quicklisp/local-projects/minecraft-lisp/*
+sbcl --load ~/quicklisp/setup.lisp --eval '(require :asdf)' --eval '(asdf:load-system :minecraft :force t)'
+
+
 to push commit:
 git -c http.proxy= -c https.proxy= push -u origin main 
 

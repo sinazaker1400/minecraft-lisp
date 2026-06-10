@@ -5,8 +5,8 @@
   (x 0.0 :type single-float)
   (y 64.0 :type single-float)
   (z 0.0 :type single-float)
-  (rot-x 0.0 :type single-float)  ;; Pitch (up/down)
-  (rot-y 0.0 :type single-float)  ;; Yaw (left/right)
+  (rot-x 0.0 :type single-float) ;; Pitch (up/down)
+  (rot-y 0.0 :type single-float) ;; Yaw (left/right)
   (vel-y 0.0 :type single-float)) ;; Vertical velocity for falling
 
 (defstruct chunk
@@ -21,7 +21,7 @@
 ;; ====== CONSTANTS ======
 (defparameter *chunk-size* 16)
 (defparameter *chunk-height* 256)
-(defparameter *move-speed* 20.0)  ;; Units per second
+(defparameter *move-speed* 20.0) ;; Units per second
 (defparameter *mouse-sensitivity* 0.003)
 (defparameter *max-pitch* (/ pi 2.5))
 (defparameter *gravity* 9.81)
@@ -46,18 +46,17 @@
 
 (defparameter *block-color-map*
   (let ((map (make-hash-table)))
-    (setf (gethash 0 map) #(0.0 0.0 0.0))      ;; Air (invisible)
-    (setf (gethash 1 map) #(0.2 0.8 0.2))      ;; Grass (green)
-    (setf (gethash 2 map) #(0.6 0.4 0.2))      ;; Dirt (brown)
-    (setf (gethash 3 map) #(0.5 0.5 0.5))      ;; Stone (gray)
-    (setf (gethash 4 map) #(0.95 0.9 0.5))     ;; Sand (yellow)
-    (setf (gethash 5 map) #(0.2 0.5 1.0))      ;; Water (blue)
-    (setf (gethash 6 map) #(0.4 0.2 0.0))      ;; Wood (brown)
-    (setf (gethash 7 map) #(0.0 0.7 0.0))      ;; Leaves (dark green)
+    (setf (gethash 0 map) #(0.0 0.0 0.0)) ;; Air (invisible)
+    (setf (gethash 1 map) #(0.2 0.8 0.2)) ;; Grass (green)
+    (setf (gethash 2 map) #(0.6 0.4 0.2)) ;; Dirt (brown)
+    (setf (gethash 3 map) #(0.5 0.5 0.5)) ;; Stone (gray)
+    (setf (gethash 4 map) #(0.95 0.9 0.5)) ;; Sand (yellow)
+    (setf (gethash 5 map) #(0.2 0.5 1.0)) ;; Water (blue)
+    (setf (gethash 6 map) #(0.4 0.2 0.0)) ;; Wood (brown)
+    (setf (gethash 7 map) #(0.0 0.7 0.0)) ;; Leaves (dark green)
     map))
 
 ;; ====== HELPER FUNCTIONS ======
-
 (defun world-coords-to-chunk-coords (x y z)
   "Convert world coordinates to chunk coordinates"
   (values (floor x *chunk-size*)
